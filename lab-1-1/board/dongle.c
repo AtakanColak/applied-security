@@ -1,13 +1,9 @@
-/* Copyright (C) 2018 Daniel Page <csdsp@bristol.ac.uk>
- *
- * Use of this source code is restricted per the CC BY-NC-ND license, a copy of
- * which can be found via http://creativecommons.org (and should be included as
- * LICENSE.txt within the associated archive or repository).
+/* Copyright (C) 2019 Atakan Colak  <ac16438@bristol.ac.uk>
  */
 
 #include "dongle.h"
 
-int hexchartoi(char hex) {
+uint8_t hexchartoi(char hex) {
   if ('0' <= hex && hex <= '9') return hex - '0';
   if ('A' <= hex && hex <= 'F') return hex - 'A' + 10;
   if ('a' <= hex && hex <= 'f') return hex - 'a' + 10;
@@ -25,7 +21,9 @@ int octetstr_rd( uint8_t* r, int n_r) {
   if (size + 3 > n_r)     return -1;
 
   for (int i = 0; i < size; ++i) {
-    r[i] = scale_uart_rd(SCALE_UART_MODE_BLOCKING);
+    char hex_A     = scale_uart_rd(SCALE_UART_MODE_BLOCKING);
+    char hex_B     = scale_uart_rd(SCALE_UART_MODE_BLOCKING);
+    r[i] = (hexchartoi(hex_A) << 4) + hexchartoi(hex_B);
   }
   char eol = scale_uart_rd(SCALE_UART_MODE_BLOCKING);
   if (!(eol == '\n' || eol == '\r')) return -1;
@@ -33,7 +31,7 @@ int octetstr_rd( uint8_t* r, int n_r) {
 }
 
 void octetstr_wr( const uint8_t* x, int n_x ) {
-  for (int i = 0; i < n_x; ++i)
+  for (int i = n_x - 1; i >= 0; ++i)
     scale_uart_wr(SCALE_UART_MODE_BLOCKING, x[i]);
 }
 
@@ -43,11 +41,20 @@ int main( int argc, char* argv[] ) {
     return -1;
   }
 
+  int max_size = 256;
+  int cur_size = 0;
+  uint8_t * local_mem = malloc(sizeof(uint8_t) * max_size); 
   while( true ) {
       scale_delay_ms(1000);
-
-
+      if (!scale_uart_rd_avail()) continue;
+      cur_size = octetstr_rd(local_mem, max_size);
+      if (!scale_uart_wr_avail()) continue;
+      octetstr_wr(local_mem, cur_size);
   }
+  return 0;
+}
+
+
 
 //   bool scale_uaint octetstr_rd( uint8_t* r, int n_r )rt_rd_avail()
 // Check if UART is available for read (i.e., would doing so block or not).
@@ -96,6 +103,3 @@ int main( int argc, char* argv[] ) {
   //     scale_uart_wr( SCALE_UART_MODE_BLOCKING, x[ i ] );
   //   }
   // }
-
-  return 0;
-}

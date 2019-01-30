@@ -8,6 +8,20 @@
 #include "ataes.h"
 
 typedef uint8_t aes_gf28_t;
+typedef uint8_t gf28_k;
+
+#define AES_ENC_RND_ROW_STEP(a,b,c,d,e,f,g,h) { \
+  aes_gf28_t __a1 = s[a];                       \
+  aes_gf28_t __b1 = s[b];                       \
+  aes_gf28_t __c1 = s[c];                       \
+  aes_gf28_t __d1 = s[d];                       \
+  s[e] = __a1;                                  \
+  s[f] = __b1;                                  \
+  s[g] = __c1;                                  \
+  s[h] = __d1;                                  \
+}
+
+
 
 char* itob(uint8_t n) {
   char * str = malloc(sizeof(char) * 8);
@@ -22,6 +36,18 @@ aes_gf28_t aes_gf28_mulx(aes_gf28_t a) {
     return 0x1B ^ (a << 1);
   else
     return (a << 1);
+}
+
+#define AES_ENC_RND_MIX_STEP(a,b,c,d) { \
+  aes_gf28_t __a1 = s[a];               \
+  aes_gf28_t __b1 = s[b];               \
+  aes_gf28_t __c1 = s[c];               \
+  aes_gf28_t __d1 = s[d];               \
+  
+  aes_gf28_t __a2 = aes_gf28_mulx( __a1);               \
+  aes_gf28_t __b2 = s[b];               \
+  aes_gf28_t __c2 = s[c];               \
+  aes_gf28_t __d2 = s[d];               \
 }
 
 aes_gf28_t aes_gf28_mul(aes_gf28_t a, aes_gf28_t b) {
@@ -49,7 +75,7 @@ aes_gf28_t aes_gf28_inv(aes_gf28_t a) {
   return t_0;
 }
 
-aes_gf28_t sbox(aes_gf28_t a) {
+aes_gf28_t aes_enc_sbox(aes_gf28_t a) {
   a = aes_gf28_inv(a);
 
   a = ( 0x63 ) ^ 
@@ -65,7 +91,63 @@ aes_gf28_t sbox(aes_gf28_t a) {
   return a;
 }
 
+void sub_word(aes_gf28_t * src, aes_gf28_t * dest) {
+  for (int i = 0; i < 4; ++i)
+    dest[i] = aes_enc_sbox(src[i]);
+}
 
+void rot_word(aes_gf28_t * src, aes_gf28_t * dest) { 
+  for (int i = 0; i < 3; ++i) 
+    dest[i] = src[i+1];
+  dest[3] = src[0];
+}
+
+//Nb number of 32 bit word columns 
+//Nk number of 32 bit word compromising Cipher Key
+//Nr number of rounds
+
+void aes_enc_exp_step( aes_gf28_t * rk, gf28_k rc ) {
+  aes_gf28_t temp[4];
+  for(int j = 0; j < 4; ++j) {
+
+    for(int i = 0; i < 4; ++i) {
+      if (j)  temp[i] = rk[4*i + j - 1];
+      else    temp[i] = rk[4*i + 3];
+    }
+
+    for(int i = 0; i < 4; ++i) {
+      if (j == 0) { 
+        rot_word(&temp, &temp);
+        sub_word(&temp, &temp);
+        if (i == 0)
+          temp[0] ^= rc;        
+      }
+
+      rk[4*i + j] ^= temp[i];      
+    }
+  }
+}
+
+void aes_enc_rnd_key(aes_gf28_t * s, const aes_gf28_t * rk) {
+  for (int i = 0; i < 16; ++i) 
+    s[i] = s[i] ^ rk[i];
+}
+
+void aes_enc_rnd_sub(aes_gf28_t * s) {
+  for (int i = 0; i < 16; ++i) 
+    s[i] = aes_enc_sbox(s[i]);
+}
+
+void aes_enc_rnd_row(aes_gf28_t * s) {
+  AES_ENC_RND_ROW_STEP(1,5,9,13,13,1,5,9);
+  AES_ENC_RND_ROW_STEP(2,6,10,14,10,14,2,6);
+  AES_ENC_RND_ROW_STEP(3,7,11,15,7,11,15,3);
+}
+
+void aes_enc_rnd_mix(aes_gf28_t * s) {
+  for(int i = 0; i < 4; ++i, s += 4)
+    AES_ENC_RND_MIX_STEP(0, 1, 2, 3);
+}
 
 int main( int argc, char* argv[] ) {
   uint8_t k[ 16 ] = { 0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6,

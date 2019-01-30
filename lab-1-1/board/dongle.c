@@ -10,29 +10,52 @@ uint8_t hexchartoi(char hex) {
   else return -1;
 }
 
+char itohexchar(uint8_t n, int i) {
+  int s = n;
+  if(i) s = (n >> 4);
+  s &= 0x0F;
+  if (s < 10) return s + '0';
+  else        return s + 'A'- 10;
+}
+
 int octetstr_rd( uint8_t* r, int n_r) {
+
   char size_A     = scale_uart_rd(SCALE_UART_MODE_BLOCKING);
+  scale_gpio_wr( SCALE_GPIO_PIN_TRG, true  );
   char size_B     = scale_uart_rd(SCALE_UART_MODE_BLOCKING);
   char semi_colon = scale_uart_rd(SCALE_UART_MODE_BLOCKING);
-
+  //scale_gpio_wr( SCALE_GPIO_PIN_GPO, true  );
   int size = (hexchartoi(size_A) << 4) + hexchartoi(size_B);
 
-  if (semi_colon != ':')  return -1;
-  if (size + 3 > n_r)     return -1;
+  //if (semi_colon != ':')  return -1;
+  //if (size > n_r - 1)     return -1;
+
 
   for (int i = 0; i < size; ++i) {
     char hex_A     = scale_uart_rd(SCALE_UART_MODE_BLOCKING);
     char hex_B     = scale_uart_rd(SCALE_UART_MODE_BLOCKING);
     r[i] = (hexchartoi(hex_A) << 4) + hexchartoi(hex_B);
   }
-  char eol = scale_uart_rd(SCALE_UART_MODE_BLOCKING);
-  if (!(eol == '\n' || eol == '\r')) return -1;
+  //char eol = scale_uart_rd(SCALE_UART_MODE_BLOCKING);
+  //if (!(eol == '\n' || eol == '\r')) return -1;
   return size;
 }
 
 void octetstr_wr( const uint8_t* x, int n_x ) {
-  for (int i = n_x - 1; i >= 0; ++i)
-    scale_uart_wr(SCALE_UART_MODE_BLOCKING, x[i]);
+  char size_A = itohexchar(n_x, 1);
+  char size_B = itohexchar(n_x, 0);
+
+  scale_uart_wr(SCALE_UART_MODE_BLOCKING, size_A);
+  scale_uart_wr(SCALE_UART_MODE_BLOCKING, size_B);
+  scale_uart_wr(SCALE_UART_MODE_BLOCKING, ':');
+
+  for (int i = n_x - 1; i >= 0; --i) {
+    size_A = itohexchar(x[i], 1);
+    size_B = itohexchar(x[i], 0);
+    scale_uart_wr(SCALE_UART_MODE_BLOCKING, size_A);
+    scale_uart_wr(SCALE_UART_MODE_BLOCKING, size_B);
+  }
+  scale_uart_wr(SCALE_UART_MODE_BLOCKING, '\r');
 }
 
 int main( int argc, char* argv[] ) {
@@ -43,13 +66,14 @@ int main( int argc, char* argv[] ) {
 
   int max_size = 256;
   int cur_size = 0;
-  uint8_t * local_mem = malloc(sizeof(uint8_t) * max_size); 
+  uint8_t local_mem[max_size];
   while( true ) {
-      scale_delay_ms(1000);
-      if (!scale_uart_rd_avail()) continue;
+      //scale_delay_ms(1000);
+
       cur_size = octetstr_rd(local_mem, max_size);
-      if (!scale_uart_wr_avail()) continue;
       octetstr_wr(local_mem, cur_size);
+      scale_gpio_wr( SCALE_GPIO_PIN_TRG, false );
+      break;
   }
   return 0;
 }

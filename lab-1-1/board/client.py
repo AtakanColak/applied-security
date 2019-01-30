@@ -1,13 +1,13 @@
 # Copyright (C) 2018 Daniel Page <csdsp@bristol.ac.uk>
 #
-# Use of this source code is restricted per the CC BY-NC-ND license, a copy of 
-# which can be found via http://creativecommons.org (and should be included as 
+# Use of this source code is restricted per the CC BY-NC-ND license, a copy of
+# which can be found via http://creativecommons.org (and should be included as
 # LICENSE.txt within the associated archive or repository).
 
-import binascii, serial, sys
+import binascii, serial, sys, time
 
 ## Convert a string (e.g., string, or bytearray) into a list (or sequence).
-## 
+##
 ## \param[in] x a  string
 ## \return      a  list   r st. r[ i ] = ord( x[ i ] )
 
@@ -15,7 +15,7 @@ def str2seq( x ) :
   return          [ ord( t ) for t in x ]
 
 ## Convert a list (or sequence) into a string (e.g., string, or bytearray).
-## 
+##
 ## \param[in] x a  list
 ## \return      a  string r st. r[ i ] = chr( x[ i ] )
 
@@ -23,7 +23,7 @@ def seq2str( x ) :
   return ''.join( [ chr( t ) for t in x ] )
 
 ## Convert a length-prefixed, hexadecimal octet string into a string.
-## 
+##
 ## \param[in] x an octet string
 ## \return      a  string
 ## \throw       ValueError if the length prefix and data do not match
@@ -37,7 +37,7 @@ def octetstr2str( x ) :
     return x
 
 ## Convert a string into a length-prefixed, hexadecimal octet string.
-## 
+##
 ## \param[in] x an octet string
 ## \return      a  string
 
@@ -58,7 +58,7 @@ def board_open() :
 def board_close( p ) :
   p.close()
 
-## Read  (or recieve) a string from SCALE development board, automatically 
+## Read  (or recieve) a string from SCALE development board, automatically
 ## managing CR-only EOL semantics.
 ##
 ## \param[in] p a  serial port object
@@ -69,7 +69,7 @@ def board_rdln( p  ) :
 
   while( True ):
     t = p.read( 1 )
-
+    print(t)
     if( t == '\x0D' ) :
       break
     else:
@@ -77,18 +77,19 @@ def board_rdln( p  ) :
 
   return r
 
-## Write (or send)    a string to   SCALE development board, automatically 
+## Write (or send)    a string to   SCALE development board, automatically
 ## managing CR-only EOL semantics.
 ##
 ## \param[in] p a  serial port object
 ## \param[in] x a  string (e.g., string, or bytearray)
 
 def board_wrln( p, x ) :
-  p.write( x + '\x0D' )
+
+  p.write( x  )
 
 ## Client implementation, as invoked from main after checking command line
 ## arguments: the idea is to send an octet string x, and verify the octet
-## string received in response matches what we expect (i.e., that we get 
+## string received in response matches what we expect (i.e., that we get
 ## an r = f_i( x )).
 ##
 ## \param[in] argc number of command line arguments
@@ -98,7 +99,7 @@ def client( argc, argv ) :
   p = board_open()
 
   x   = argv[ 1 ]
-
+  time.sleep(2)
   t_0 =                                  x
   t_1 =                    octetstr2str( x )
   t_2 = ''.join( reversed( octetstr2str( x ) ) )

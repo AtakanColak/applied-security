@@ -84,15 +84,17 @@ if ( __name__ == '__main__' ) :
     emu.mem_map( 0x00000000,  32 * 1024        ) # Figure  6:  32 kB => flash 
     emu.mem_map( 0x10000000,   4 * 1024        ) # Figure  6:   4 kB => SRAM
     emu.mem_map( 0x1FFF0000,  16 * 1024        ) # Figure  6:  16 kB => boot ROM
-    emu.mem_map( 0x40000000, 512 * 1024        ) # Figure  6: 512 kB => APB peripherals
-    emu.mem_map( 0x50000000,   2 * 1024 * 1024 ) # Figure  6:   2 MB => AHB peripherals
+    emu.mem_map( 0x40000000, 512 * 1024        ) # Figure  6: 512 kB => APB     peripheral bus
+    emu.mem_map( 0x50000000,   2 * 1024 * 1024 ) # Figure  6:   2 MB => AHB     peripheral bus
+    emu.mem_map( 0xE0000000,   1 * 1024 * 1024 ) # Figure  6:   1 MB => private peripheral bus
 
   elif ( args.target == 'lpc1313fbd48' ) :
     emu.mem_map( 0x00000000,  32 * 1024        ) # Figure 14:  32 kB => flash 
     emu.mem_map( 0x10000000,   8 * 1024        ) # Figure 14:   8 kB => SRAM
     emu.mem_map( 0x1FFF0000,  16 * 1024        ) # Figure 14:  16 kB => boot ROM
-    emu.mem_map( 0x40000000, 512 * 1024        ) # Figure 14: 512 kB => APB peripherals
-    emu.mem_map( 0x50000000,   2 * 1024 * 1024 ) # Figure 14:   2 MB => AHB peripherals
+    emu.mem_map( 0x40000000, 512 * 1024        ) # Figure  6: 512 kB => APB     peripheral bus
+    emu.mem_map( 0x50000000,   2 * 1024 * 1024 ) # Figure  6:   2 MB => AHB     peripheral bus
+    emu.mem_map( 0xE0000000,   1 * 1024 * 1024 ) # Figure  6:   1 MB => private peripheral bus
 
   # hook instruction fetch, and handle ctrl-c as forced exit
 

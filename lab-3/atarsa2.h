@@ -16,10 +16,14 @@
 
 #include <gmp.h>
 
+#define ATARSA_BIT_LENGTH 1024
+
 // #define MAX(x, y) ({x > y ? x : y;})
 // #define MIN(x, y) ({x > y ? y : x;})
 
-void atarsa_primegen(int lambda);
+void print_mpz(mpz_t n);
+
+void atarsa_primegen(mpz_t p, int lambda);
 void rsa_keygen( mpz_t N, mpz_t e, mpz_t d, int lambda);
 
 #endif

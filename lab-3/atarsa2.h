@@ -13,16 +13,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
+#include <time.h>
 
 #include <gmp.h>
 
 #define ATARSA_BIT_LENGTH 1024
-
+#define PRINT 1
 // #define MAX(x, y) ({x > y ? x : y;})
 // #define MIN(x, y) ({x > y ? y : x;})
 
+void print_str(const char * str);
 void print_mpz(mpz_t n);
-
+void atarsa_random(mpz_t z, int lambda);
 void atarsa_primegen(mpz_t p, int lambda);
 void rsa_keygen( mpz_t N, mpz_t e, mpz_t d, int lambda);
 

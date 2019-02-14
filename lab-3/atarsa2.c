@@ -1,14 +1,31 @@
 #include "atarsa2.h"
 
+
+gmp_randstate_t random_state;
+
 int main(int argc, char *argv[])
 {
+    
     int lambda = ATARSA_BIT_LENGTH;
     mpz_t N, e, d;
     mpz_init(N);
     mpz_init(e);
     mpz_init(d);
 
+    srand ( time(0) );
+    mpz_t seed;
+    mpz_init(seed);
+
+    
+    gmp_randinit_default(random_state);
+
+    mpz_set_ui(seed, 0x0123456789ABCDEF);
+    gmp_randseed_ui(random_state, seed);
+
     rsa_keygen(N, e, d, lambda);
+
+    gmp_randclear(random_state);
+    mpz_clear(seed);
 
     print_mpz(N);
     print_mpz(e);
@@ -30,19 +47,33 @@ void rsa_keygen(mpz_t N, mpz_t e, mpz_t d, int lambda)
 
     atarsa_primegen(p, lambda);
     atarsa_primegen(q, lambda);
+    print_str("P and Q generated.");
 
-    if (mpz_cmp(p, q) > 1)
-        print_str("P is greater than Q");
-    if (mpz_cmp(q, p) > 1)
-        print_str("Q is greater than P");
+    if (mpz_cmp(p, q) > 0)
+        print_str("P is greater than Q.");
+    if (mpz_cmp(p, q) < 0)
+        print_str("Q is greater than P.");
     else if (mpz_cmp(q, p) == 0)  
-        print_str("P and Q are equal");
+        print_str("P and Q are equal.");
 
     mpz_mul(N, p, q);
+    print_str("N generated.");
 
     mpz_sub_ui(p, p, 1);
     mpz_sub_ui(q, q, 1);
     mpz_mul(phi_N, p, q);
+    print_str("phi_N generated.");
+
+    mpz_urandomm(e, random_state, phi_N);
+    mpz_gcd(cmp_res, e, phi_N);
+    while(mpz_cmp_ui(cmp_res, 1) < 1) {
+        mpz_urandomm(e, random_state, phi_N);
+        mpz_gcd(cmp_res, e, phi_N);
+    }
+    print_str("e generated.");
+
+    mpz_invert(d, e, phi_N);
+    print_str("d generated.");
 
     // while (1) {
     //     atarsa_random(e, lambda);
@@ -63,16 +94,13 @@ void rsa_keygen(mpz_t N, mpz_t e, mpz_t d, int lambda)
 
 void atarsa_primegen(mpz_t p, int lambda)
 {
-
-    atarsa_random(p, lambda);
-
+    mpz_urandomb(p, random_state, lambda);
     size_t n = mpz_size(p);
     mp_limb_t t[n];
     mpz_export(t, NULL, -1, sizeof(mp_limb_t), -1, 0, p);
     t[0] |= 0x0000000000000001;
     t[n - 1] |= 0xC000000000000000;
     mpz_import(p, n, -1, sizeof(mp_limb_t), -1, 0, t);
-
     mpz_nextprime(p, p);
 }
 
@@ -92,24 +120,6 @@ void print_str(const char *str)
 {
     if (PRINT == 1)
         gmp_printf("%s\n", str);
-}
-
-void atarsa_random(mpz_t z, int lambda)
-{
-    mpz_t seed;
-    mpz_init(seed);
-
-    gmp_randstate_t random_state;
-    gmp_randinit_default(random_state);
-
-    srand ( time(0) );
-    mpz_set_ui(seed, rand());
-    gmp_randseed_ui(random_state, seed);
-
-    mpz_urandomb(z, random_state, lambda);
-
-    gmp_randclear(random_state);
-    mpz_clear(seed);
 }
 // mpz_export( t, NULL, -1, sizeof( mp_limb_t ), -1, 0, p );
 //     for (int i = 0; i < n; i++)

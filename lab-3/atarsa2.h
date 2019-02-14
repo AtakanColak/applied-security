@@ -24,7 +24,6 @@
 
 void print_str(const char * str);
 void print_mpz(mpz_t n);
-void atarsa_random(mpz_t z, int lambda);
 void atarsa_primegen(mpz_t p, int lambda);
 void rsa_keygen( mpz_t N, mpz_t e, mpz_t d, int lambda);
 

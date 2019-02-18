@@ -26,5 +26,7 @@ void print_str(const char * str);
 void print_mpz(mpz_t n);
 void atarsa_primegen(mpz_t p, int lambda);
 void rsa_keygen( mpz_t N, mpz_t e, mpz_t d, int lambda);
+void rsa_enc( mpz_t c, mpz_t m, mpz_t e, mpz_t N );
+void rsa_dec( mpz_t m, mpz_t c, mpz_t d, mpz_t N );
 
 #endif

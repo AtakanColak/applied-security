@@ -7,10 +7,12 @@ int main(int argc, char *argv[])
 {
     
     int lambda = ATARSA_BIT_LENGTH;
-    mpz_t N, e, d;
+    mpz_t N, e, d, c, m;
     mpz_init(N);
     mpz_init(e);
     mpz_init(d);
+    mpz_init(c);
+    mpz_init(m);
 
     srand ( time(0) );
     mpz_t seed;
@@ -22,18 +24,37 @@ int main(int argc, char *argv[])
     mpz_set_ui(seed, 0x0123456789ABCDEF);
     gmp_randseed_ui(random_state, seed);
 
+    mpz_set_ui(m, 0x0123456789ABCDEF); 
+
     rsa_keygen(N, e, d, lambda);
+    print_mpz(m);
+    rsa_enc(c, m, e, N);
+    print_mpz(c);
+    rsa_dec(m, c, d, N);
+    print_mpz(m);
+    mpz_set_ui(c, 0x0123456789ABCDEF); 
+
+    if(mpz_cmp(m, c) == 0)
+        print_str("Vanilla RSA works.");
+    else {
+        print_str("Error.");
+    }
 
     gmp_randclear(random_state);
     mpz_clear(seed);
 
+    print_str("Generated N:");
     print_mpz(N);
+    print_str("Generated e:");
     print_mpz(e);
+    print_str("Generated d:");
     print_mpz(d);
 
     mpz_clear(N);
     mpz_clear(e);
     mpz_clear(d);
+    mpz_clear(c);
+    mpz_clear(m);
     return 0;
 }
 
@@ -64,17 +85,23 @@ void rsa_keygen(mpz_t N, mpz_t e, mpz_t d, int lambda)
     mpz_mul(phi_N, p, q);
     print_str("phi_N generated.");
 
-    mpz_urandomm(e, random_state, phi_N);
-    mpz_gcd(cmp_res, e, phi_N);
-    while(mpz_cmp_ui(cmp_res, 1) < 1) {
-        mpz_urandomm(e, random_state, phi_N);
-        mpz_gcd(cmp_res, e, phi_N);
-    }
-    print_str("e generated.");
-
-    mpz_invert(d, e, phi_N);
-    print_str("d generated.");
-
+    
+    //Take e as most common num
+    mpz_set_ui(e, 65537);
+    int result = mpz_invert(d, e, phi_N);
+    // while (!result) {
+    //     mpz_urandomm(e, random_state, phi_N);
+    //     mpz_gcd(cmp_res, e, phi_N);
+    //     while(mpz_cmp_ui(cmp_res, 1) < 1) {
+    //         mpz_urandomm(e, random_state, phi_N);
+    //         mpz_gcd(cmp_res, e, phi_N);
+    //     }
+        
+    // } 
+    if (result)
+        print_str("e and d generated.");
+    else 
+        print_str("ERROR");
     // while (1) {
     //     atarsa_random(e, lambda);
     //     mpz_gcd(cmp_res, e, p);
@@ -121,6 +148,14 @@ void print_str(const char *str)
     if (PRINT == 1)
         gmp_printf("%s\n", str);
 }
+
+void rsa_enc( mpz_t c, mpz_t m, mpz_t e, mpz_t N ) {
+    mpz_powm_sec(c, m, e, N);
+}
+void rsa_dec( mpz_t m, mpz_t c, mpz_t d, mpz_t N ) {
+    mpz_powm_sec(m, c, d, N);
+}
+
 // mpz_export( t, NULL, -1, sizeof( mp_limb_t ), -1, 0, p );
 //     for (int i = 0; i < n; i++)
 //     {

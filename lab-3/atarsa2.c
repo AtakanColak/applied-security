@@ -1,60 +1,80 @@
 #include "atarsa2.h"
 
-
 gmp_randstate_t random_state;
 
 int main(int argc, char *argv[])
 {
-    
-    int lambda = ATARSA_BIT_LENGTH;
-    mpz_t N, e, d, c, m;
-    mpz_init(N);
-    mpz_init(e);
-    mpz_init(d);
-    mpz_init(c);
-    mpz_init(m);
+    if (argc == 2)
+    {
+        int lambda = ATARSA_BIT_LENGTH;
+        mpz_t N, e, d, c, m;
+        mpz_init(N);
+        mpz_init(e);
+        mpz_init(d);
+        mpz_init(c);
+        mpz_init(m);
 
-    srand ( time(0) );
-    mpz_t seed;
-    mpz_init(seed);
+        srand(time(0));
+        mpz_t seed;
+        mpz_init(seed);
 
-    
-    gmp_randinit_default(random_state);
+        int valid = mpz_set_str(m, argv[1], 16);
 
-    mpz_set_ui(seed, 0x0123456789ABCDEF);
-    gmp_randseed_ui(random_state, seed);
+        if (valid == 0)
+        {
+            gmp_randinit_default(random_state);
+            mpz_set_ui(seed, 0x0123456789ABCDEF);
+            gmp_randseed_ui(random_state, seed);
 
-    mpz_set_ui(m, 0x0123456789ABCDEF); 
+            rsa_keygen(N, e, d, lambda);
+            rsa_enc(c, m, e, N);
+            rsa_dec(c, c, d, N);
 
-    rsa_keygen(N, e, d, lambda);
-    print_mpz(m);
-    rsa_enc(c, m, e, N);
-    print_mpz(c);
-    rsa_dec(m, c, d, N);
-    print_mpz(m);
-    mpz_set_ui(c, 0x0123456789ABCDEF); 
+            print_str("Message :");
+            print_str(mpz_get_str(NULL, 16, m));
+            print_str("Ciphertext :");
+            print_str(mpz_get_str(NULL, 16, c));
 
-    if(mpz_cmp(m, c) == 0)
-        print_str("Vanilla RSA works.");
-    else {
-        print_str("Error.");
+            if (mpz_cmp(m, c) == 0)
+            {
+                print_str("Vanilla RSA works.");
+
+                // print_str("Public Key :");
+                // print_str(mpz_get_str(NULL, 10, N));
+                // print_str(mpz_get_str(NULL, 10, e));
+                // print_str("Private Key :");
+                // print_str(mpz_get_str(NULL, 10, N));
+                // print_str(mpz_get_str(NULL, 10, d));
+            }
+            else
+            {
+                print_str("Error.");
+            }
+        }
+        else
+        {
+            print_str("Message isn't valid.");
+        }
+
+        gmp_randclear(random_state);
+        mpz_clear(seed);
+
+        mpz_clear(N);
+        mpz_clear(e);
+        mpz_clear(d);
+        mpz_clear(c);
+        mpz_clear(m);
     }
+    else
+        print_str("Pass a single message for encryption.");
 
-    gmp_randclear(random_state);
-    mpz_clear(seed);
+    // print_str("Generated N:");
+    // print_mpz(N);
+    // print_str("Generated e:");
+    // print_mpz(e);
+    // print_str("Generated d:");
+    // print_mpz(d);
 
-    print_str("Generated N:");
-    print_mpz(N);
-    print_str("Generated e:");
-    print_mpz(e);
-    print_str("Generated d:");
-    print_mpz(d);
-
-    mpz_clear(N);
-    mpz_clear(e);
-    mpz_clear(d);
-    mpz_clear(c);
-    mpz_clear(m);
     return 0;
 }
 
@@ -74,7 +94,7 @@ void rsa_keygen(mpz_t N, mpz_t e, mpz_t d, int lambda)
         print_str("P is greater than Q.");
     if (mpz_cmp(p, q) < 0)
         print_str("Q is greater than P.");
-    else if (mpz_cmp(q, p) == 0)  
+    else if (mpz_cmp(q, p) == 0)
         print_str("P and Q are equal.");
 
     mpz_mul(N, p, q);
@@ -85,7 +105,6 @@ void rsa_keygen(mpz_t N, mpz_t e, mpz_t d, int lambda)
     mpz_mul(phi_N, p, q);
     print_str("phi_N generated.");
 
-    
     //Take e as most common num
     mpz_set_ui(e, 65537);
     int result = mpz_invert(d, e, phi_N);
@@ -96,11 +115,11 @@ void rsa_keygen(mpz_t N, mpz_t e, mpz_t d, int lambda)
     //         mpz_urandomm(e, random_state, phi_N);
     //         mpz_gcd(cmp_res, e, phi_N);
     //     }
-        
-    // } 
+
+    // }
     if (result)
         print_str("e and d generated.");
-    else 
+    else
         print_str("ERROR");
     // while (1) {
     //     atarsa_random(e, lambda);
@@ -149,10 +168,12 @@ void print_str(const char *str)
         gmp_printf("%s\n", str);
 }
 
-void rsa_enc( mpz_t c, mpz_t m, mpz_t e, mpz_t N ) {
+void rsa_enc(mpz_t c, mpz_t m, mpz_t e, mpz_t N)
+{
     mpz_powm_sec(c, m, e, N);
 }
-void rsa_dec( mpz_t m, mpz_t c, mpz_t d, mpz_t N ) {
+void rsa_dec(mpz_t m, mpz_t c, mpz_t d, mpz_t N)
+{
     mpz_powm_sec(m, c, d, N);
 }
 

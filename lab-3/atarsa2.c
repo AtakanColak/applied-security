@@ -40,8 +40,8 @@ int main(int argc, char *argv[])
             {
                 print_str("Vanilla RSA works.");
 
-                 print_str("Public Key :");
-                 print_str(mpz_get_str(NULL, 10, N));
+                print_str("Public Key :");
+                print_str(mpz_get_str(NULL, 10, N));
                 print_str(mpz_get_str(NULL, 10, e));
                 print_str("Private Key :");
                 print_str(mpz_get_str(NULL, 10, N));
@@ -106,7 +106,7 @@ void rsa_keygen(mpz_t N, mpz_t e, mpz_t d, int lambda)
     mpz_mul(phi_N, p, q);
     print_str("phi_N generated.");
 
-    //Take e as most common num
+    //Take e as most common e
     mpz_set_ui(e, 65537);
     int result = mpz_invert(d, e, phi_N);
     // while (!result) {

@@ -39,14 +39,9 @@ void interact(int *t,
   }
 }
 
-void brute_force()
+int password_length(char *pwd, int t, int r)
 {
-  char *alfabe = "0123456789qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM";
-
-  int t = 0;
-  int r;
   int l = 0;
-  char *pwd = malloc(sizeof(char));
   pwd[0] = 'a';
 
   while (t == 0)
@@ -56,6 +51,19 @@ void brute_force()
     pwd[l - 1] = 'a';
     interact(&t, &r, pwd);
   }
+  return l;
+}
+
+void brute_force()
+{
+  char *alfabe = "0123456789qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM";
+
+  int t = 0;
+  int r;
+
+  char *pwd = malloc(sizeof(char));
+
+  int l = password_length(pwd, t, r);
 
   printf("Password length is %d characters\n", l);
 
@@ -66,10 +74,43 @@ void brute_force()
     {
       pwd[i] = alfabe[j];
       interact(&t, &r, pwd);
-      if (t - 1 > i || r == 1) break;
+      if (t - 1 > i || r == 1)
+        break;
     }
   }
   printf("Password is `%s`\n", pwd);
+}
+
+//ssize_t getline(char **lineptr, size_t *n, FILE *stream);
+
+void dictionary()
+{
+  int r = 0, t = 0;
+  char *pwd = malloc(sizeof(char));
+  int l = password_length(pwd, t, r);
+  printf("Password length is %d characters\n", l);
+  FILE *dictionary = fopen("crackstation-human-only.txt", "r");
+  char *word = malloc(sizeof(char) * 100);
+  size_t len = 100;
+  int ctr = 0;
+  char c;
+  while(c = getc(dictionary) != EOF) {
+    ssize_t n = getline(&word, &len, dictionary);
+    n--;
+    if (n == l) {
+      memcpy(pwd, word, sizeof(char) * l);
+      interact(&t, &r, pwd);
+      if(r == 1) break;
+    }
+  }
+  if(c == EOF)
+    printf("END OF FILE\n");
+  else if(r == 1) {
+    printf("Password is `%s`\n", pwd);
+  }
+  free(pwd);
+  free(word);
+  fclose(dictionary);
 }
 
 void attack()
@@ -153,7 +194,8 @@ int main(int argc, char *argv[])
     // Execute a function representing the attacker.
 
     //attack();
-    brute_force();
+    // brute_force();
+    dictionary();
   }
   else if (pid == 0)
   { // child

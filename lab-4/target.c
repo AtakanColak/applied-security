@@ -32,7 +32,7 @@ bool match( int* t, const char* x, const char* y ) {
 }
 
 int main( int argc, char* argv[] ) {
-  char G[ 14 + 1 ], P[] = "bubirsifredir";
+  char G[ 8 + 1 ], P[] = "password";
 
   while( true ) {
     if( 1 != fscanf( stdin, "%s", G ) ) {

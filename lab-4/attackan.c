@@ -94,20 +94,32 @@ void dictionary()
   size_t len = 100;
   int ctr = 0;
   char c;
+
+  char *prevs[3];
+  pwd = calloc(l, sizeof(char));
+  for (int i = 0; i < 3; i++)
+    prevs[i] = calloc(l, sizeof(char));
+
   while(c = getc(dictionary) != EOF) {
     ssize_t n = getline(&word, &len, dictionary);
     n--;
-    if (n == l) {
-      memcpy(pwd, word, sizeof(char) * l);
-      interact(&t, &r, pwd);
-      if(r == 1) break;
+    if (n != l) continue; 
+    for(int i = 0; i < 2; i++) {
+      memcpy(prevs[i], prevs[i+1], sizeof(char) * l);
     }
+    memcpy(prevs[2], pwd, sizeof(char) * l);
+    memcpy(pwd, word, sizeof(char) * l);
+    printf("Trying '%s'\n", pwd);
+    interact(&t, &r, pwd);
+    
+    if (r) break;
   }
   if(c == EOF)
     printf("END OF FILE\n");
   else if(r == 1) {
-    printf("Password is `%s`\n", pwd);
+    printf("Password is `%s`\n", prevs[0]);
   }
+  
   free(pwd);
   free(word);
   fclose(dictionary);

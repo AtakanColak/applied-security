@@ -40,12 +40,12 @@ int main(int argc, char *argv[])
             {
                 print_str("Vanilla RSA works.");
 
-                // print_str("Public Key :");
-                // print_str(mpz_get_str(NULL, 10, N));
-                // print_str(mpz_get_str(NULL, 10, e));
-                // print_str("Private Key :");
-                // print_str(mpz_get_str(NULL, 10, N));
-                // print_str(mpz_get_str(NULL, 10, d));
+                 print_str("Public Key :");
+                 print_str(mpz_get_str(NULL, 10, N));
+                print_str(mpz_get_str(NULL, 10, e));
+                print_str("Private Key :");
+                print_str(mpz_get_str(NULL, 10, N));
+                print_str(mpz_get_str(NULL, 10, d));
             }
             else
             {

@@ -28,12 +28,13 @@ int main(int argc, char *argv[])
 
             rsa_keygen(N, e, d, lambda);
             rsa_enc(c, m, e, N);
+            print_str("Ciphertext :");
+            print_str(mpz_get_str(NULL, 16, c));
             rsa_dec(c, c, d, N);
 
             print_str("Message :");
             print_str(mpz_get_str(NULL, 16, m));
-            print_str("Ciphertext :");
-            print_str(mpz_get_str(NULL, 16, c));
+            
 
             if (mpz_cmp(m, c) == 0)
             {

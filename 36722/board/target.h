@@ -17,7 +17,6 @@
 #define SIZEOF_KEY      (   16 )
 #define SIZEOF_RND      (    0 )
 
-#define READ_BYTE       (scale_uart_rd(SCALE_UART_MODE_BLOCKING))
-#define WRITE_BYTE(c)   (scale_uart_wr(SCALE_UART_MODE_BLOCKING, c))
+
 
 #endif

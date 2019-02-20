@@ -7,15 +7,13 @@
 
 #include "ataes.h"
 
-typedef uint8_t    aes_gf28_t;
-typedef uint32_t aes_gf28_word;
-typedef uint8_t gf28_k;
+typedef uint8_t   aes_gf28_t;
+typedef uint32_t  aes_gf28_word;
+typedef uint8_t   gf28_k;
 
 aes_gf28_t AES_RC[10] = { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36};
 
-//Number of Columns
 #define NB 4
-//Number of Rounds
 #define NR 9
  
 // aes_gf28_word rcon(i) {
@@ -462,8 +460,9 @@ int main( int argc, char* argv[] ) {
   printf("\nTEST 7: ATAES\n");
   printf("\nChecking if ataes_dec(ates_enc(m)) == m\n");
   aes_enc(t,m,k);
+  print_block(t);
   aes_dec(t,t,k);
-  //print_block(m);
-  //print_block(t);
+  print_block(m);
+  print_block(t);
   cmp_blk(m,t);
 }

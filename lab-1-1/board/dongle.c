@@ -41,8 +41,8 @@ int octetstr_rd( uint8_t* r, int n_r) {
   for (int i = 0; i < size; ++i)
     r[i] = read_hex_byte();
 
-  char eol = READ_BYTE;
-  //if (!(eol == '\n' || eol == '\r')) return -1;
+  //END OF LINE
+  semi_colon = READ_BYTE;
   return size;
 }
 
@@ -53,8 +53,7 @@ void octetstr_wr( const uint8_t* x, int n_x ) {
   for (int i = 0; i < n_x; ++i)
     write_byte(x[i]);
 
-  WRITE_BYTE('\n');
-  WRITE_BYTE('\r');
+  WRITE_BYTE('\x0D');
 }
 
 int main( int argc, char* argv[] ) {

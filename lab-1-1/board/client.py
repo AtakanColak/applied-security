@@ -84,8 +84,7 @@ def board_rdln( p  ) :
 ## \param[in] x a  string (e.g., string, or bytearray)
 
 def board_wrln( p, x ) :
-
-  p.write( x  )
+  p.write( x + '\x0D')
 
 ## Client implementation, as invoked from main after checking command line
 ## arguments: the idea is to send an octet string x, and verify the octet

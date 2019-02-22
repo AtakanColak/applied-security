@@ -99,11 +99,14 @@ int octetstr_rd(uint8_t *r, int n_r)
   uint8_t size = read_hex_byte();
   char semi_colon = READ_BYTE;
 
-  if (semi_colon != ':')
+  if (semi_colon != ':') {
+    //WRITE_BYTE(semi_colon);
     return -1;
-  if (size > n_r)
+  }
+  if (size > n_r) {
+    //WRITE_BYTE(size + '0');
     return -1;
-
+  }
   for (int i = 0; i < size; ++i)
     r[i] = read_hex_byte();
 
@@ -351,12 +354,16 @@ int main(int argc, char *argv[])
 
   uint8_t cmd[1], c[SIZEOF_BLK], m[SIZEOF_BLK], k[SIZEOF_KEY] = {0xA1, 0xA2, 0xD5, 0x52, 0x76, 0x67, 0x29, 0xA6, 0xF0, 0xED, 0x1E, 0xD8, 0xD8, 0x02, 0xEB, 0xFF}, r[SIZEOF_RND];
 
+  int i = 0;
   while (true)
   {
+    if (i != 0) WRITE_BYTE(READ_BYTE);
+    else i = 1;
     int result = octetstr_rd(cmd, 1);
     if (1 != result)
     {
-      WRITE_BYTE(result + '0');
+      //WRITE_BYTE(result + '0');
+
       octetstr_wr(cmd, 1);
       break;
     }

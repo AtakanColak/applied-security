@@ -353,11 +353,14 @@ int main(int argc, char *argv[])
 
   while (true)
   {
-    if (1 != octetstr_rd(cmd, 1))
+    int result = octetstr_rd(cmd, 1);
+    if (1 != result)
     {
+      WRITE_BYTE(result + '0');
+      octetstr_wr(cmd, 1);
       break;
     }
-
+    octetstr_wr(cmd, 1);
     switch (cmd[0])
     {
     case COMMAND_INSPECT:

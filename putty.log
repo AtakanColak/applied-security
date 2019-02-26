@@ -1,0 +1,5 @@
+=~=~=~=~=~=~=~=~=~=~=~= PuTTY log 2019.02.26 11:52:35 =~=~=~=~=~=~=~=~=~=~=~=
+Event Log: Writing new session log (SSH raw data mode) to file: putty.log
+Event Log: Looking up host "127.0.0.1" for main connection
+Event Log: Connecting to 127.0.0.1 port 5558
+Event Log: Connection reset by peer

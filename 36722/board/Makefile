@@ -27,9 +27,9 @@ program-${PROJECT}-term :
 	@putty -serial -sercfg 9600,8,n,1,N /dev/scale-board
 
 emulate-${PROJECT}      :
-	@python -O emulator.py --debug --host 127.0.0.1 --port 5556 --file ${PROJECT}.hex
+	@python -O emulator.py --debug --host 127.0.0.1 --port 5558 --file ${PROJECT}.hex
 emulate-${PROJECT}-term :
-	@putty -raw -P 5556 127.0.0.1
+	@putty -raw -P 5558 127.0.0.1
 
 program-36722 :
 	@lpc21isp -wipe -hex ./36722.hex /dev/scale-board 9600 12000

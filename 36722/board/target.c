@@ -11,6 +11,8 @@ typedef uint8_t aes_gf28_t;
 typedef uint32_t aes_gf28_word;
 typedef uint8_t gf28_k;
 
+int ghost = 0;
+
 aes_gf28_t AES_RC[10] = {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36};
 
 #define NB 4
@@ -54,37 +56,26 @@ aes_gf28_t AES_RC[10] = {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0
     s[d] = __a3 ^ __b1 ^ __c1 ^ __d2;      \
   }
 
-uint8_t read_hex()
-{
-  char hex = READ_BYTE;
-  if ('A' <= hex && hex <= 'F')
-    return hex - 'A' + 10;
-  else
-    return hex - '0';
+void octetstr_wr(const uint8_t *x, int n_x);
+
+char * hex_string = "0123456789ABCDEF";
+
+uint8_t htoi(char c) {
+  for(uint8_t i = 0; i < 16; ++i)
+    if(hex_string[i] == c) return i;
+  return 16;
 }
 
-uint8_t read_hex_byte()
+char itoh(uint8_t n)
 {
-  uint8_t A = read_hex();
-  uint8_t B = read_hex();
-  return (A << 4) | B;
+  if ( n < 16) return hex_string[n];
+  return 'Z';
 }
 
-uint8_t itoh(uint8_t c)
-{
-  c &= 0x0F;
-  if (c < 10)
-    return c + '0';
-  else
-    return c + 'A' - 10;
-}
-
-void write_byte(uint8_t byte)
-{
-  char A = itoh(byte >> 4);
-  char B = itoh(byte);
-  WRITE_BYTE(A);
-  WRITE_BYTE(B);
+void pfs(char * s) {
+  for(int i = 0; i < strlen(s); ++i) {
+    WRITE_BYTE(s[i]);
+  }
 }
 
 /** Read  an octet string (or sequence of bytes) from the UART, using a simple
@@ -94,26 +85,41 @@ void write_byte(uint8_t byte)
   * \return       the number of octets read
   */
 
-int octetstr_rd(uint8_t *r, int n_r)
-{
-  uint8_t size = read_hex_byte();
-  char semi_colon = READ_BYTE;
 
-  if (semi_colon != ':') {
-    //WRITE_BYTE(semi_colon);
-    return -1;
-  }
-  if (size > n_r) {
-    //WRITE_BYTE(size + '0');
-    return -1;
-  }
-  for (int i = 0; i < size; ++i)
-    r[i] = read_hex_byte();
+int _octetstr_rd( uint8_t* r, int n_r, char* x ) {
+  //Convert all hex chars to integers
+  int size = (htoi(x[0]) << 4) | htoi(x[1]);
 
-  //EOL
-  semi_colon = READ_BYTE;
+  for (int i = 0; i < size; ++i) {
+    r[i] = (htoi(x[2*i + 3]) << 4) | htoi(x[2*i + 4]);
+  }
+
+  // pfs("Received ");
+  // octetstr_wr(r, size);
   return size;
 }
+
+int octetstr_rd( uint8_t* r, int n_r) {
+  char x[ 2 + 1 + 2 * ( n_r ) + 1 ]; // 2-char length, 1-char colon, 2*n_r-char data, 1-char terminator
+//   if(!ghost) ghost = 1;
+//   else {
+//     uint8_t byteghost = READ_BYTE;
+//     WRITE_BYTE(itoh(byteghost >> 4));
+//     WRITE_BYTE(itoh(byteghost & 0x0F));
+//   WRITE_BYTE('\n');
+//   ghost = 0;
+// }
+  for( int i = 0; true; i++ ) {
+    x[ i ] = READ_BYTE;
+    if( x[ i ] == '\x0D' ) {
+      x[ i ] = '\x00'; break;
+    }
+  }
+
+  return _octetstr_rd( r, n_r, x );
+}
+
+
 
 /** Write an octet string (or sequence of bytes) to   the UART, using a simple
   * length-prefixed, little-endian hexadecimal format.
@@ -124,12 +130,17 @@ int octetstr_rd(uint8_t *r, int n_r)
 
 void octetstr_wr(const uint8_t *x, int n_x)
 {
-  write_byte(n_x);
-  WRITE_BYTE(':');
+  char s[ 2 + 1 + 2 * ( n_x ) + 1 ];
+  s[0] = itoh(n_x >> 4);
+  s[1] = itoh(n_x & 0x0F);
+  s[2] = ':';
 
-  for (int i = 0; i < n_x; ++i)
-    write_byte(x[i]);
-
+  for (int i = 0; i < n_x; ++i) {
+    s[2*i + 3] = itoh(x[i] >> 4);
+    s[2*i + 4] = itoh(x[i] & 0x0F);
+  }
+  s[2 * n_x + 3] = '\x00';
+  pfs(s);
   WRITE_BYTE('\x0D');
   return;
 }
@@ -353,21 +364,18 @@ int main(int argc, char *argv[])
   }
 
   uint8_t cmd[1], c[SIZEOF_BLK], m[SIZEOF_BLK], k[SIZEOF_KEY] = {0xA1, 0xA2, 0xD5, 0x52, 0x76, 0x67, 0x29, 0xA6, 0xF0, 0xED, 0x1E, 0xD8, 0xD8, 0x02, 0xEB, 0xFF}, r[SIZEOF_RND];
+  uint8_t k1[SIZEOF_KEY] = {0xCD,0x97,0x16,0xE9,0x5B,0x42,0xDD,0x48,0x69,0x77,0x2A,0x34,0x6A,0x7F,0x58,0x13};
 
-  int i = 0;
   while (true)
   {
-    if (i != 0) WRITE_BYTE(READ_BYTE);
-    else i = 1;
+    // pfs("\n");
     int result = octetstr_rd(cmd, 1);
     if (1 != result)
     {
-      //WRITE_BYTE(result + '0');
-
-      octetstr_wr(cmd, 1);
+      // pfs("READ ERROR");
+      // WRITE_BYTE(itoh(result));
       break;
     }
-    octetstr_wr(cmd, 1);
     switch (cmd[0])
     {
     case COMMAND_INSPECT:
@@ -395,7 +403,7 @@ int main(int argc, char *argv[])
       aes_init(k, r);
 
       scale_gpio_wr(SCALE_GPIO_PIN_TRG, true);
-      aes(c, m, k, r);
+      aes(c, m, k1, r);
       scale_gpio_wr(SCALE_GPIO_PIN_TRG, false);
 
       octetstr_wr(c, SIZEOF_BLK);
@@ -411,3 +419,29 @@ int main(int argc, char *argv[])
 
   return 0;
 }
+
+// int octetstr_rd(uint8_t *r, int n_r)
+// {
+//   if (ghost != 0) READ_BYTE;
+//   else ghost = 1;
+//   uint8_t size = read_hex_byte();
+//   char semi_colon = READ_BYTE;
+//
+//   if (semi_colon != ':') {
+//     //WRITE_BYTE(semi_colon);
+//     return -1;
+//   }
+//   if (size > n_r) {
+//     //WRITE_BYTE(size + '0');
+//     return -1;
+//   }
+//   for (int i = 0; i < size; ++i)
+//     r[i] = read_hex_byte();
+//
+//   //EOL
+//   semi_colon = READ_BYTE;
+//
+//   pfs("Read: ");
+//   octetstr_wr(r,size);
+//   return size;
+// }

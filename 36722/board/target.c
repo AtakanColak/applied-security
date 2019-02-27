@@ -14,6 +14,8 @@ typedef uint8_t gf28_k;
 int ghost = 0;
 
 aes_gf28_t AES_RC[10] = {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36};
+aes_gf28_t sbox_table[256];
+
 
 #define NB 4
 #define NR 9
@@ -203,11 +205,16 @@ aes_gf28_t aes_enc_sbox(aes_gf28_t a)
   return a;
 }
 
+void compute_sbox_table() {
+  for(int b = 0; b < 256; ++b)
+      sbox_table[b] = aes_enc_sbox(b);
+}
+
 //Works
 void sub_word(aes_gf28_t *src)
 {
   for (int i = 0; i < 4; ++i)
-    src[i] = aes_enc_sbox(src[i]);
+    src[i] = sbox_table[src[i]];
 }
 
 //Works
@@ -256,7 +263,7 @@ void aes_enc_rnd_key(aes_gf28_t *s, const aes_gf28_t *rk)
 void aes_enc_rnd_sub(aes_gf28_t *s)
 {
   for (int i = 0; i < 16; ++i)
-    s[i] = aes_enc_sbox(s[i]);
+    s[i] = sbox_table[s[i]];
 }
 
 void aes_enc_rnd_row(aes_gf28_t * s) {
@@ -298,7 +305,7 @@ void aes_init(const uint8_t *k, const uint8_t *r)
 
 void aes(uint8_t *c, const uint8_t *m, const uint8_t *k, const uint8_t *r)
 {
-  aes_gf28_t rk[4 * NB], s[4 * NB];
+  aes_gf28_t rk[16], s[16];
 
   //aes_gf28_t * rcp = AES_RC;
   aes_gf28_t * rkp = rk;
@@ -358,6 +365,7 @@ void aes(uint8_t *c, const uint8_t *m, const uint8_t *k, const uint8_t *r)
 
 int main(int argc, char *argv[])
 {
+  compute_sbox_table();
   if (!scale_init(&SCALE_CONF))
   {
     return -1;

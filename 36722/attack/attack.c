@@ -7,8 +7,8 @@ uint32_t t, s;
     {                             \
         n = getc(traces);         \
         n |= (getc(traces) << 8); \
-        n |= (getc(traces) << 8); \
-        n |= (getc(traces) << 8); \
+        n |= (getc(traces) << 16); \
+        n |= (getc(traces) << 24); \
     }
 
 #define FREE_ALLOCATED \

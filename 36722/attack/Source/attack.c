@@ -2,8 +2,8 @@
 
 FILE *traces;
 uint32_t t, s, h = 256;
-
-#define ANTSEC_S ((int) (s / 4))
+uint8_t sbox[256];
+#define ANTSEC_S ((int) (s / 32))
 #define ANTSEC_T (100)
 
 uint8_t actual_key[16] = {0xCD, 0x97, 0x16, 0xE9, 0x5B, 0x42, 0xDD, 0x48,
@@ -15,27 +15,16 @@ uint8_t actual_key[16] = {0xCD, 0x97, 0x16, 0xE9, 0x5B, 0x42, 0xDD, 0x48,
 // 114 at 0.629247
 // 205 at 0.626534
 
-//s / 2 200
-// 205 0.60278 (MAX)
-
-//s / 3 100
-// 205 0.626534 (MAX)
-
-//s / 3.5 100
-// 205 0.626534 (MAX)
-
-//s / 3.75 100
-// 205 0.626534 (MAX)
-
-//s / 3.9 100
-// 205 0.626534 (MAX)
-
+// #define ANTSEC_S ((int) (s / 4))
+// #define ANTSEC_T (1000)
+// 50 0.6437793
 int main(int argc, char *argv[]) {
     traces = fopen(TRACEPATH, "r");
     if (traces == NULL) {
         printf("<traces.dat> not found, exiting.\n");
         return 0;
     }
+    compute_sbox_table();
 
     READ_INT(t);
     READ_INT(s);
@@ -54,7 +43,7 @@ int main(int argc, char *argv[]) {
     double H[h][ANTSEC_T];
     for (int j = 0; j < ANTSEC_T; ++j) {
         for (int i = 0; i < h; ++i) {
-            H[i][j] = (double)hamming_weight(m[j][0] ^ i);
+            H[i][j] = hamming_weight(sbox[m[j][0] ^ i]);
         }
     }
 
@@ -90,15 +79,15 @@ int main(int argc, char *argv[]) {
     printf("Calculating pearson correlation coefficients...\n");
     double *results = malloc(sizeof(double) * ANTSEC_S * h);
     for (int _h = 0; _h < h; ++_h) {
-        printf("pcc iteration %d\n", _h);
+        // printf("pcc iteration %d\n", _h);
         for (int _s = 0; _s < ANTSEC_S; ++_s) {
             // double cov = ANTSEC_T * ehiTis[ANTSEC_S * _h + _s] - ehis[_h] *
             // eTis[_s]; double sd_H = sqrt(ANTSEC_T * ehi2s[_h] -
             // ehis[_h]*ehis[_h]); double sd_T = sqrt(ANTSEC_T * eTi2s[_s] -
             // eTis[_s]*eTis[_s]);
             results[_h * ANTSEC_S + _s] =
-                gsl_stats_correlation(H[_h], 1, &doubled_T[ANTSEC_T * _s], 1,
-                                      ANTSEC_T);  // cov / (sd_H * sd_T);// //
+                fabs(gsl_stats_correlation(H[_h], 1, &doubled_T[ANTSEC_T * _s], 1,
+                                      ANTSEC_T));  // cov / (sd_H * sd_T);// //
         }
     }
 
@@ -112,7 +101,8 @@ int main(int argc, char *argv[]) {
             //         _h += 1;
             //     }
             // }
-            if (max_val < results[_h * ANTSEC_S + _s] && (_h > 200)) {
+            
+            if (max_val < results[_h * ANTSEC_S + _s] && (_h > 0)) {
                 max_val = results[_h * ANTSEC_S + _s];
                 max = _h;
             }
@@ -194,7 +184,7 @@ void aes_enc_rnd_key(uint8_t *s, const uint8_t *rk) {
 }
 
 uint8_t hamming_weight(uint8_t n) { return __builtin_popcount(n); }
-
+uint8_t hamming_distance(uint8_t a, uint8_t b) { return __builtin_popcount(a ^ b);} 
 char itoh(uint8_t n) {
     if (n < 16) return HEXSTRING[n];
     return 'Z';
@@ -227,4 +217,64 @@ void read_trace_block(int16_t *block) {
             block[j * t + i] |= (getc(traces) << 8);
         }
     }
+}
+
+uint8_t aes_gf28_mulx(uint8_t a)
+{
+  if (a & 0x80)
+    return 0x1B ^ (a << 1);
+  else
+    return (a << 1);
+}
+
+//Works
+uint8_t aes_gf28_mul(uint8_t a, uint8_t b)
+{
+  uint8_t t = 0;
+  for (int i = 7; i >= 0; i--)
+  {
+    t = aes_gf28_mulx(t);
+    if ((b >> i) & 1)
+      t ^= a;
+  }
+  return t;
+}
+uint8_t aes_gf28_inv(uint8_t a)
+{
+  //Fermats little theorem states that a ^ -1 is a ^ (q-2)
+  uint8_t t_0 = aes_gf28_mul(a, a);   //a^2
+  uint8_t t_1 = aes_gf28_mul(t_0, a); //a^3
+  t_0 = aes_gf28_mul(t_0, t_0);          //a^4
+  t_1 = aes_gf28_mul(t_1, t_0);          //a^7
+  t_0 = aes_gf28_mul(t_0, t_0);          //a^8
+  t_0 = aes_gf28_mul(t_1, t_0);          //a^15
+  t_0 = aes_gf28_mul(t_0, t_0);          //a^30
+  t_0 = aes_gf28_mul(t_0, t_0);          //a^60
+  t_1 = aes_gf28_mul(t_1, t_0);          //a^67
+  t_0 = aes_gf28_mul(t_1, t_0);          //a^127
+  t_0 = aes_gf28_mul(t_0, t_0);          //a^254
+  return t_0;
+}
+
+uint8_t aes_enc_sbox(uint8_t a)
+{
+  a = aes_gf28_inv(a);
+
+  a = (0x63) ^
+      (a) ^
+      (a << 1) ^
+      (a >> 7) ^
+      (a << 2) ^
+      (a >> 6) ^
+      (a << 3) ^
+      (a >> 5) ^
+      (a << 4) ^
+      (a >> 4); // Left Bitwise Circular Shift
+  // because left bitwise shift isn't cool enough
+  return a;
+}
+
+void compute_sbox_table() {
+  for(int b = 0; b < 256; ++b)
+      sbox[b] = aes_enc_sbox(b);
 }

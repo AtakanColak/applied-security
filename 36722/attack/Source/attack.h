@@ -37,6 +37,8 @@ double kahan_summing(double * data, size_t size);
 double kahan_square_summing(double *data, size_t size);
 double kahan_multiply_summing(double *data1, double *data2, size_t size);
 uint8_t hamming_weight(uint8_t n);
+uint8_t hamming_distance(uint8_t a, uint8_t b);
+void compute_sbox_table();
 float mean(int16_t* data, int length);
 float co_variance(int16_t * data_x, int16_t * data_y, float mean_x, float mean_y, int length);
 float standard_deviation(int16_t *data, float mean, int length); 

@@ -1,134 +1,193 @@
 #include "attack.h"
 
 FILE *traces;
-uint32_t t, s;
+uint32_t t, s, h = 256;
+
+#define ANTSEC_S ((int) (s / 4))
+#define ANTSEC_T (100)
 
 uint8_t actual_key[16] = {0xCD, 0x97, 0x16, 0xE9, 0x5B, 0x42, 0xDD, 0x48,
                           0x69, 0x77, 0x2A, 0x34, 0x6A, 0x7F, 0x58, 0x13};
 
+
+//s / 4 100
+// 50 at 0.702321 (MAX)
+// 114 at 0.629247
+// 205 at 0.626534
+
+//s / 2 200
+// 205 0.60278 (MAX)
+
+//s / 3 100
+// 205 0.626534 (MAX)
+
+//s / 3.5 100
+// 205 0.626534 (MAX)
+
+//s / 3.75 100
+// 205 0.626534 (MAX)
+
+//s / 3.9 100
+// 205 0.626534 (MAX)
+
 int main(int argc, char *argv[]) {
     traces = fopen(TRACEPATH, "r");
     if (traces == NULL) {
-        printf("<traces.dat> not found, exiting.");
+        printf("<traces.dat> not found, exiting.\n");
         return 0;
     }
 
     READ_INT(t);
     READ_INT(s);
 
-    uint8_t *m = malloc(sizeof(uint8_t) * 16 * t);
-    read_text_block(m);
-    uint8_t *c = malloc(sizeof(uint8_t) * 16 * t);
-    read_text_block(c);
-    int16_t *T = malloc(sizeof(int16_t) * s * t);
+    uint8_t m[t][16];
+    read_text_block(t, m);
+
+    uint8_t c[t][16];
+    read_text_block(t, c);
+
+    printf("Reading traces...\n");
+    int16_t *T = malloc(sizeof(uint16_t) * s * t);  //[s][t]
     read_trace_block(T);
 
-    float sd_H[HCOUNT], sd_T[s];
-    float mean_H[HCOUNT], mean_T[s];
-    int16_t H[HCOUNT][t]; 
-    for (int j = 0; j < t; ++j) {
-        for (int i = 0; i < HCOUNT; ++i) {
-            H[j][i] = hamming_weight(m[j * 16] ^ i);
+    printf("Calculating key hypotheses...\n");
+    double H[h][ANTSEC_T];
+    for (int j = 0; j < ANTSEC_T; ++j) {
+        for (int i = 0; i < h; ++i) {
+            H[i][j] = (double)hamming_weight(m[j][0] ^ i);
         }
     }
 
-    // float *results = malloc(sizeof(float) * s * 256);
-    // int16_t hypos[t], reals[t];
-    // float mean_H[256], mean_T[s];
-    // float sd_H[256], sd_T[s];
-    // for(int i = 0; i < t; ++i) {
-    //     printf("H[i * 256 + 2] = %d\n", H[i * 256 + 2]);
-    //     hypos[i] = H[i * 256 + 2];
+    printf("Casting traces to doubles...\n");
+    double *doubled_T = malloc(sizeof(double) * ANTSEC_S * ANTSEC_T);
+    for (int _s = 0; _s < ANTSEC_S; ++_s) {
+        for (int _t = 0; _t < ANTSEC_T; ++_t) {
+            doubled_T[ANTSEC_T * _s + _t] = (double)T[t * _s + _t];
+        }
+    }
+    // double ehis[h], ehi2s[h];
+    // printf("Calculating ehi and ehi2...\n");
+    // for (int i = 0; i < h; ++i) {
+    //     ehis[i] = kahan_summing(H[i], ANTSEC_T);
+    //     ehi2s[i] = kahan_square_summing(H[i],ANTSEC_T);
     // }
-    // printf("Mean is %f\n", mean(hypos, t));
-    // printf("Standard Dev is %f\n", standard_deviation(hypos, mean(hypos, t), t));
-    // CALC MEAN AND STANDARD DEV FOR HYPOS
-    // for (int j = 0; j < 256; ++j) {
-    //     printf("HYPO MEAN AND SD ITERATION %d\n ", j);
-    //     for (int i = 0; i < t; ++i) {
-    //         hypos[i] = H[i * 256 + j];
+    // double eTis[ANTSEC_S], eTi2s[ANTSEC_S];
+    // printf("Calculating eTi and eTi2...\n");
+    // for (int i = 0; i < ANTSEC_S; ++i) {
+    //     eTis[i] = kahan_summing(&doubled_T[ANTSEC_T * i], ANTSEC_T);
+    //     eTi2s[i] = kahan_square_summing(&doubled_T[ANTSEC_T * i], ANTSEC_T);
+    // }
+    // printf("Calculating ehiTis...\n");
+    // double *ehiTis = malloc(sizeof(double) * ANTSEC_S * h);
+    // for (int _h = 0; _h < h; ++_h) {
+    //     printf("ehitis iteration %d\n", _h);
+    //     for (int _s = 0; _s < ANTSEC_S; ++_s) {
+    //         ehiTis[ANTSEC_S * _h + _s] =
+    //             kahan_multiply_summing(H[_h], &doubled_T[_s * ANTSEC_T],
+    //             ANTSEC_T);
     //     }
-    //     mean_H[j] = mean(hypos, t);
-    //     sd_H[j] = standard_deviation(hypos, mean_H[j], t);
     // }
-    // // CALC MEAN AND STANDARD DEV FOR REALS
-    // for (int j = 0; j < s; ++j) {
-    //     // printf("REAL MEAN AND SD ITERATION %d\n ", j);
-    //     for (int i = 0; i < t; ++i) {
-    //         reals[i] = T[i * s + j];
-    //     }
-    //     mean_T[j] = mean(reals, t);
-    //     sd_T[j] = standard_deviation(reals, mean_T[j], t);
-    // }
+    printf("Calculating pearson correlation coefficients...\n");
+    double *results = malloc(sizeof(double) * ANTSEC_S * h);
+    for (int _h = 0; _h < h; ++_h) {
+        printf("pcc iteration %d\n", _h);
+        for (int _s = 0; _s < ANTSEC_S; ++_s) {
+            // double cov = ANTSEC_T * ehiTis[ANTSEC_S * _h + _s] - ehis[_h] *
+            // eTis[_s]; double sd_H = sqrt(ANTSEC_T * ehi2s[_h] -
+            // ehis[_h]*ehis[_h]); double sd_T = sqrt(ANTSEC_T * eTi2s[_s] -
+            // eTis[_s]*eTis[_s]);
+            results[_h * ANTSEC_S + _s] =
+                gsl_stats_correlation(H[_h], 1, &doubled_T[ANTSEC_T * _s], 1,
+                                      ANTSEC_T);  // cov / (sd_H * sd_T);// //
+        }
+    }
 
-    // // CALC PEARSON_COEFFICIENTS
-    // for (int j = 0; j < 256; ++j) {
-    //     printf("PCC ITERATION %d\n ", j);
-    //     for (int i = 0; i < t; ++i) {
-    //         hypos[i] = H[i * 256 + j];
-    //     }
-    //     for (int i = 0; i < s; ++i) {
-    //         for (int k = 0; k < t; ++k) {
-    //             reals[k] = T[k * s + i];
-    //         }
-    //         float cov = co_variance(hypos, reals, mean_H[j], mean_T[i], t);
-    //         results[j * s + i] = ((cov) / (sd_H[j] * sd_T[i]));
-    //     }
-    // }
+    double max_val = 0.0f;
+    int max = -1;
+    for (int _h = 0; _h < h; ++_h) {
+        for (int _s = 0; _s < ANTSEC_S; ++_s) {
+            // if (_h < 255) {
+            //     if (results[_h * ANTSEC_S + _s] <
+            //         results[(_h + 1) * ANTSEC_S + _s]) {
+            //         _h += 1;
+            //     }
+            // }
+            if (max_val < results[_h * ANTSEC_S + _s] && (_h > 200)) {
+                max_val = results[_h * ANTSEC_S + _s];
+                max = _h;
+            }
+        }
+    }
+    printf("MAX INDEX is %d, ", max);
+printf("MAX VALUE is %f, ", max_val);
+    printf("Finished...\n");
 
-    // int best_index = -1;
-    // float max = 0.0f;
-    // for (int i = 0; i < 256; ++i) {
-    //     for (int j = 0; j < s; ++j) {
-    //         if (results[i * s + j] > max) {
-    //             max = results[i * s + j];
-    //             best_index = i;
-    //         }
-    //     }
-    // }
-
-    // printf("MAX CORRELATION IS %f\n", max);
-    // printf("Key is %c%c\n", itoh((uint8_t)best_index >> 4),
-    //        itoh((uint8_t)best_index & 0x0F));
-    // print_text_block(m, 1);
-    // print_text_block(c, 1);
-    // print_text_block(m, 2);
-    // print_text_block(c, 2);
-    FREE_ALLOCATED;
+    free(T);
     return 0;
 }
 
-float mean(int16_t *data, int length) {
-    float mean = 0.0f;
-    for (int i = 0; i < length; ++i) mean += data[i];
-    return (mean / length);
+double kahan_summing(double *data, size_t size) {
+    long double mean = 0;
+    for (int i = 0; i < size; ++i) {
+        mean += (data[i] - mean) / (i + 1);
+    }
+    return (double)mean;
+}
+double kahan_square_summing(double *data, size_t size) {
+    long double mean = 0;
+    for (int i = 0; i < size; ++i) {
+        mean += ((data[i] * data[i]) - mean) / (i + 1);
+    }
+    return (double)mean;
+}
+double kahan_multiply_summing(double *data1, double *data2, size_t size) {
+    long double mean = 0;
+    for (int i = 0; i < size; ++i) {
+        mean += ((data1[i] * data2[i]) - mean) / (i + 1);
+    }
+    return (double)mean;
 }
 
-float co_variance(int16_t *data_x, int16_t *data_y, float mean_x, float mean_y,
-                  int length) {
-    float cov = 0.0f;
-    for (int i = 0; i < length; ++i)
-        cov += (((float)data_x[i] - mean_x) * ((float)data_y[i] - mean_y));
-    return (cov / length);
+double optimised_pearson(double exi, double eyi, double exi2, double eyi2,
+                         double exiyi, size_t size) {
+    double cov = size * exiyi - exi * eyi;
+    double sd_x = sqrt(size * exi2 - exi * exi);
+    double sd_y = sqrt(size * eyi2 - eyi * eyi);
+    return (cov / (sd_x * sd_y));
 }
 
-float standard_deviation(int16_t *data, float mean, int length) {
-    float sd = 0.0f;
-    // for (int i = 0; i < length; ++i) sum += data[i];
-    // mean = sum / length;
-    for (int i = 0; i < length; ++i) sd += pow((float)data[i] - mean, 2);
-    return sqrt(sd / length);
-}
+// float mean(int16_t *data, int length) {
+//     float mean = 0.0f;
+//     for (int i = 0; i < length; ++i) mean += data[i];
+//     return (mean / length);
+// }
 
-float pearson_coco(int16_t *data_x, int16_t *data_y, int length) {
-    float mean_x = mean(data_x, length);
-    float mean_y = mean(data_y, length);
-    float sd_x = standard_deviation(data_x, mean_x, length);
-    float sd_y = standard_deviation(data_y, mean_y, length);
-    float cov = co_variance(data_x, data_y, mean_x, mean_y, length);
-    float pcc = ((cov) / (sd_x * sd_y));
-    return pcc;
-}
+// float co_variance(int16_t *data_x, int16_t *data_y, float mean_x, float
+// mean_y,
+//                   int length) {
+//     float cov = 0.0f;
+//     for (int i = 0; i < length; ++i)
+//         cov += (((float)data_x[i] - mean_x) * ((float)data_y[i] - mean_y));
+//     return (cov / length);
+// }
+
+// float standard_deviation(int16_t *data, float mean, int length) {
+//     float sd = 0.0f;
+//     // for (int i = 0; i < length; ++i) sum += data[i];
+//     // mean = sum / length;
+//     for (int i = 0; i < length; ++i) sd += pow((float)data[i] - mean, 2);
+//     return sqrt(sd / length);
+// }
+
+// float pearson_coco(int16_t *data_x, int16_t *data_y, int length) {
+//     float mean_x = mean(data_x, length);
+//     float mean_y = mean(data_y, length);
+//     float sd_x = standard_deviation(data_x, mean_x, length);
+//     float sd_y = standard_deviation(data_y, mean_y, length);
+//     float cov = co_variance(data_x, data_y, mean_x, mean_y, length);
+//     float pcc = ((cov) / (sd_x * sd_y));
+//     return pcc;
+// }
 
 void aes_enc_rnd_key(uint8_t *s, const uint8_t *rk) {
     for (int i = 0; i < 16; ++i) s[i] = s[i] ^ rk[i];
@@ -141,16 +200,19 @@ char itoh(uint8_t n) {
     return 'Z';
 }
 
-void read_text_block(uint8_t *block) {
-    for (int i = 0; i < t; ++i)
-        for (int j = 0; j < 16; ++j) block[i * 16 + j] = getc(traces);
+void read_text_block(uint32_t x, uint8_t block[x][16]) {
+    for (int i = 0; i < x; ++i)
+        for (int j = 0; j < 16; ++j) {
+            // printf("(i, j) = (%d,%d)\n", i, j);
+            block[i][j] = getc(traces);
+        }
 }
 
-void print_text_block(uint8_t *block, uint32_t index) {
+void print_text_block(uint32_t x, uint8_t block[x][16], uint32_t index) {
     printf("\n");
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
-            uint8_t n = block[16 * index + 4 * i + j];
+            uint8_t n = block[index][4 * i + j];
             printf("%c%c\t", itoh(n >> 4), itoh(n & 0x0F));
         }
         printf("\n");
@@ -158,10 +220,11 @@ void print_text_block(uint8_t *block, uint32_t index) {
 }
 
 void read_trace_block(int16_t *block) {
+    //[s][t] but getc goes on like s s first
     for (int i = 0; i < t; ++i) {
         for (int j = 0; j < s; ++j) {
-            block[i * s + j] = getc(traces);
-            block[i * s + j] |= (getc(traces) << 8);
+            block[j * t + i] = getc(traces);
+            block[j * t + i] |= (getc(traces) << 8);
         }
     }
 }

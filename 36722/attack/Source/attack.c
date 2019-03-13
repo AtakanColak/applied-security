@@ -36,25 +36,25 @@ int main(int argc, char *argv[]) {
 
     uint8_t k[1][16];
 
-    printf("Reading traces...\n");
+    // printf("Reading traces...\n");
     int16_t *T = malloc(sizeof(uint16_t) * s * t);  //[s][t]
     read_trace_block(T);
 
-    printf("Casting traces to doubles...\n");
+    // printf("Casting traces to doubles...\n");
     double *doubled_T = malloc(sizeof(double) * ANTSEC_S * ANTSEC_T);
     // printf("\n");
     for (int _s = 0; _s < ANTSEC_S; ++_s) {
-        printf("\riteration %d", _s);
+        // printf("\riteration %d", _s);
         ;
         fflush(stdout);
         for (int _t = 0; _t < ANTSEC_T; ++_t) {
             doubled_T[ANTSEC_T * _s + _t] = (double)T[t * _s + _t];
         }
     }
-    printf("\rdouble casting is done...\n");
+    // printf("\rdouble casting is done...\n");
 
     for (int b = 0; b < 16; ++b) {
-        printf("Calculating key hypothesis of index %d...\n", b);
+        // printf("Calculating key hypothesis of index %d...\n", b);
         double H[h][ANTSEC_T];
         for (int j = 0; j < ANTSEC_T; ++j) {
             for (int i = 0; i < h; ++i) {
@@ -62,11 +62,11 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        printf("Calculating pearson correlation coefficients...\n");
+        // printf("Calculating pearson correlation coefficients...\n");
         double *results = malloc(sizeof(double) * ANTSEC_S * h);
         // printf("\n");
         for (int _h = 0; _h < h; ++_h) {
-            printf("\rpcc iteration %d", _h);
+            // printf("\rpcc iteration %d", _h);
             ;
             fflush(stdout);
             for (int _s = 0; _s < ANTSEC_S; ++_s) {
@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
                     H[_h], 1, &doubled_T[ANTSEC_T * _s], 1, ANTSEC_T));
             }
         }
-        printf("\rpcc done...          \n");
+        // printf("\rpcc done...          \n");
         double max_val = 0.0f;
         int max = -1;
         for (int _h = 0; _h < h; ++_h) {
@@ -88,8 +88,15 @@ int main(int argc, char *argv[]) {
         k[0][b] = (uint8_t) max;
     }
     print_text_block(1,k,0);
-    // printf("Key Byte is 0x%c%c, ", itoh((max >> 4) & 0xFF), itoh(max & 0x0F));
-    // printf("with correlation of %f\n", max_val);
+    int equal = 1;
+    for(int b = 0; b < 16; ++b) {
+        if(k[0][b] != actual_key[b])
+            equal = 0;
+    }
+    if(equal == 1) {
+        printf("KR-DPA attack on AES-128 is successful.\n");
+        printf("Heckid bY Attacckan.\n");
+    }
     printf("Finished...\n");
 
     free(T);

@@ -9,7 +9,7 @@
 #include <time.h>
 
 #define TRACEPATH "traces.dat"
-#define WRITEPATH "results.dat"
+// #define WRITEPATH "results.dat"
 #define HEXSTRING "0123456789ABCDEF"
 
 #define READ_INT(n)                \

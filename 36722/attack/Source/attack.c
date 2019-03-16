@@ -5,7 +5,6 @@ uint32_t t, s, h = 256;
 uint8_t sbox[256];
 #define ANTSEC_S ((int)(s / 16))
 #define ANTSEC_T (250)
-
 uint8_t actual_key[16] = {0xCD, 0x97, 0x16, 0xE9, 0x5B, 0x42, 0xDD, 0x48,
                           0x69, 0x77, 0x2A, 0x34, 0x6A, 0x7F, 0x58, 0x13};
 
@@ -45,17 +44,26 @@ int main(int argc, char *argv[]) {
     // printf("Casting traces to doubles...\n");
     short *doubled_T = malloc(sizeof(short) * ANTSEC_S * ANTSEC_T);
     // printf("\n");
-    float means_T[ANTSEC_S];
+    long eTis[ANTSEC_S];
+    long eT2is[ANTSEC_S];
+    // float means_T[ANTSEC_S];
     float sd_T[ANTSEC_S];
     for (int _s = 0; _s < ANTSEC_S; ++_s) {
         // printf("\riteration %d", _s);
-        fflush(stdout);
+        // fflush(stdout);
+        eTis[_s] = 0;
+        eT2is[_s] = 0;
         for (int _t = 0; _t < ANTSEC_T; ++_t) {
-            doubled_T[ANTSEC_T * _s + _t] = (short) T[t * _s + _t];
+            long y = (long)T[t * _s + _t];
+            doubled_T[ANTSEC_T * _s + _t] = (short)y;
+            eTis[_s] += y;
+            eT2is[_s] += y * y;
         }
-        short *ptr = &doubled_T[ANTSEC_T * _s];
-        means_T[_s] = (float) gsl_stats_short_mean(ptr, 1, ANTSEC_T);
-        sd_T[_s] = (float) gsl_stats_short_sd_m(ptr, 1, ANTSEC_T, means_T[_s]);
+        sd_T[_s] = sqrt(ANTSEC_T*eT2is[_s] - eTis[_s] * eTis[_s]);
+        // short *ptr = &doubled_T[ANTSEC_T * _s];
+        // means_T[_s] = (float) gsl_stats_short_mean(ptr, 1, ANTSEC_T);
+        // sd_T[_s] = (float) gsl_stats_short_sd_m(ptr, 1, ANTSEC_T,
+        // means_T[_s]);
     }
     // printf("\rdouble casting is done...\n");
     // return 0;
@@ -64,7 +72,7 @@ int main(int argc, char *argv[]) {
         short H[h][ANTSEC_T];
         for (int j = 0; j < ANTSEC_T; ++j) {
             for (int i = 0; i < h; ++i) {
-                H[i][j] = (short) hamming_weight(sbox[m[j][b] ^ i]);
+                H[i][j] = (short)hamming_weight(sbox[m[j][b] ^ i]);
             }
         }
 
@@ -75,13 +83,40 @@ int main(int argc, char *argv[]) {
         float *results = malloc(sizeof(float) * ANTSEC_S * h);
         // printf("\n");
         for (int _h = 0; _h < h; ++_h) {
-            float mean_h = (float)gsl_stats_short_mean(H[_h], 1, ANTSEC_T);
-            float sd_h = (float)gsl_stats_short_sd_m(H[_h], 1, ANTSEC_T, mean_h);
+            // float mean_h = (float)gsl_stats_short_mean(H[_h], 1, ANTSEC_T);
+            // float sd_h =
+            // (float)gsl_stats_short_sd_m(H[_h], 1, ANTSEC_T, mean_h);
+            long ehi = 0;
+            long ehi2i = 0;
+            long ehiTi[ANTSEC_S];
+            for(int _s = 0; _s < ANTSEC_S; ++_s) 
+                ehiTi[_s] = 0;
+            for (int j = 0; j < ANTSEC_T; ++j) {
+                ehi += H[_h][j];
+                ehi2i += H[_h][j] * H[_h][j];
+                for(int _s = 0; _s < ANTSEC_S; ++_s) {
+                    ehiTi[_s] += H[_h][j] * doubled_T[ANTSEC_T * _s + j];
+                }
+            }
             
             // fflush(stdout);
             for (int _s = 0; _s < ANTSEC_S; ++_s) {
-                float covar = gsl_stats_short_covariance_m(&doubled_T[ANTSEC_T * _s], 1, H[_h], 1, ANTSEC_T, means_T[_s], mean_h);
-                results[_h * ANTSEC_S + _s] = fabs(covar / (sd_T[_s] * sd_h));//fabs(gsl_stats_correlation(H[_h], 1, &doubled_T[ANTSEC_T * _s], 1, ANTSEC_T));
+                // float covar = gsl_stats_short_covariance_m(
+                //     &doubled_T[ANTSEC_T * _s], 1, H[_h], 1, ANTSEC_T,
+                //     means_T[_s], mean_h);
+                double cov = ANTSEC_T * ehiTi[_s] - ehi * eTis[_s]; 
+                // if(cov == 0) {
+                //     printf("ehiTis[_s] = %ld\n", ehiTi[_s]);
+                //     printf("ehi = %ld\n", ehi);
+                //     printf("eTis[_s] = %ld\n", eTis[_s]);
+                //     return 0;
+                // }
+                double sd_H = sqrt(ANTSEC_T * ehi2i - ehi * ehi);
+                results[_h * ANTSEC_S + _s] = fabs(cov / (sd_H * sd_T[_s]));
+                    // fabs(covar /
+                    //      (sd_T[_s] *
+                    //       sd_h));  // fabs(gsl_stats_correlation(H[_h], 1,
+                                   // &doubled_T[ANTSEC_T * _s], 1, ANTSEC_T));
             }
         }
         // printf("\rpcc done...          \n");

@@ -3,8 +3,8 @@
 FILE *traces;
 uint32_t t, s, h = 256;
 uint8_t sbox[256];
-#define ANTSEC_S ((int)(s / 16))
-#define ANTSEC_T (250)
+#define ANTSEC_S ((int)(s / 24))
+#define ANTSEC_T (225)
 uint8_t actual_key[16] = {0xCD, 0x97, 0x16, 0xE9, 0x5B, 0x42, 0xDD, 0x48,
                           0x69, 0x77, 0x2A, 0x34, 0x6A, 0x7F, 0x58, 0x13};
 
@@ -35,22 +35,21 @@ int main(int argc, char *argv[]) {
 
     uint8_t k[1][16];
 
-    // printf("Reading traces...\n");
+    printf("Reading traces...\n");
     int16_t *T = malloc(sizeof(uint16_t) * s * t);  //[s][t]
     read_trace_block(T);
 
     time_t seconds = time(NULL);
-
-    // printf("Casting traces to doubles...\n");
+    printf("Using %d traces and %d samples from starting point\n", ANTSEC_T,
+           ANTSEC_S);
+    printf(
+        "Calculating sums, square sums and standard deviations of traces...\n");
     short *doubled_T = malloc(sizeof(short) * ANTSEC_S * ANTSEC_T);
     // printf("\n");
     long eTis[ANTSEC_S];
     long eT2is[ANTSEC_S];
-    // float means_T[ANTSEC_S];
     float sd_T[ANTSEC_S];
     for (int _s = 0; _s < ANTSEC_S; ++_s) {
-        // printf("\riteration %d", _s);
-        // fflush(stdout);
         eTis[_s] = 0;
         eT2is[_s] = 0;
         for (int _t = 0; _t < ANTSEC_T; ++_t) {
@@ -59,16 +58,10 @@ int main(int argc, char *argv[]) {
             eTis[_s] += y;
             eT2is[_s] += y * y;
         }
-        sd_T[_s] = sqrt(ANTSEC_T*eT2is[_s] - eTis[_s] * eTis[_s]);
-        // short *ptr = &doubled_T[ANTSEC_T * _s];
-        // means_T[_s] = (float) gsl_stats_short_mean(ptr, 1, ANTSEC_T);
-        // sd_T[_s] = (float) gsl_stats_short_sd_m(ptr, 1, ANTSEC_T,
-        // means_T[_s]);
+        sd_T[_s] = sqrt(ANTSEC_T * eT2is[_s] - eTis[_s] * eTis[_s]);
     }
-    // printf("\rdouble casting is done...\n");
-    // return 0;
     for (int b = 0; b < 16; ++b) {
-        // printf("Calculating key hypothesis of index %d...\n", b);
+        printf("Calculating key[%d]:\n", b);
         short H[h][ANTSEC_T];
         for (int j = 0; j < ANTSEC_T; ++j) {
             for (int i = 0; i < h; ++i) {
@@ -76,47 +69,25 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // double means_H[h];
-        // double sd_H[h];
-
         // printf("Calculating pearson correlation coefficients...\n");
         float *results = malloc(sizeof(float) * ANTSEC_S * h);
         // printf("\n");
         for (int _h = 0; _h < h; ++_h) {
-            // float mean_h = (float)gsl_stats_short_mean(H[_h], 1, ANTSEC_T);
-            // float sd_h =
-            // (float)gsl_stats_short_sd_m(H[_h], 1, ANTSEC_T, mean_h);
             long ehi = 0;
             long ehi2i = 0;
             long ehiTi[ANTSEC_S];
-            for(int _s = 0; _s < ANTSEC_S; ++_s) 
-                ehiTi[_s] = 0;
-            for (int j = 0; j < ANTSEC_T; ++j) {
-                ehi += H[_h][j];
-                ehi2i += H[_h][j] * H[_h][j];
-                for(int _s = 0; _s < ANTSEC_S; ++_s) {
-                    ehiTi[_s] += H[_h][j] * doubled_T[ANTSEC_T * _s + j];
+            for (int _s = 0; _s < ANTSEC_S; ++_s) ehiTi[_s] = 0;
+            for (int _t = 0; _t < ANTSEC_T; ++_t) {
+                ehi += H[_h][_t];
+                ehi2i += H[_h][_t] * H[_h][_t];
+                for (int _s = 0; _s < ANTSEC_S; ++_s) {
+                    ehiTi[_s] += H[_h][_t] * doubled_T[ANTSEC_T * _s + _t];
                 }
             }
-            
-            // fflush(stdout);
+            double sd_H = sqrt(ANTSEC_T * ehi2i - ehi * ehi);
             for (int _s = 0; _s < ANTSEC_S; ++_s) {
-                // float covar = gsl_stats_short_covariance_m(
-                //     &doubled_T[ANTSEC_T * _s], 1, H[_h], 1, ANTSEC_T,
-                //     means_T[_s], mean_h);
-                double cov = ANTSEC_T * ehiTi[_s] - ehi * eTis[_s]; 
-                // if(cov == 0) {
-                //     printf("ehiTis[_s] = %ld\n", ehiTi[_s]);
-                //     printf("ehi = %ld\n", ehi);
-                //     printf("eTis[_s] = %ld\n", eTis[_s]);
-                //     return 0;
-                // }
-                double sd_H = sqrt(ANTSEC_T * ehi2i - ehi * ehi);
+                double cov = ANTSEC_T * ehiTi[_s] - ehi * eTis[_s];
                 results[_h * ANTSEC_S + _s] = fabs(cov / (sd_H * sd_T[_s]));
-                    // fabs(covar /
-                    //      (sd_T[_s] *
-                    //       sd_h));  // fabs(gsl_stats_correlation(H[_h], 1,
-                                   // &doubled_T[ANTSEC_T * _s], 1, ANTSEC_T));
             }
         }
         // printf("\rpcc done...          \n");
@@ -131,19 +102,29 @@ int main(int argc, char *argv[]) {
             }
         }
         k[0][b] = (uint8_t)max;
+        printf("K[%d] = %c%c\n", b, itoh(max >> 4), itoh(max & 0x0F));
         free(results);
     }
     print_text_block(1, k, 0);
+    int ctr = 0;
     int equal = 1;
     for (int b = 0; b < 16; ++b) {
-        if (k[0][b] != actual_key[b]) equal = 0;
+        if (k[0][b] != actual_key[b])
+            equal = 0;
+        else {
+            ctr++;
+        }
     }
     if (equal == 1) {
-        printf("KR-DPA attack on AES-128 is successful.\n");
-        printf("Heckid bY Attacckan.\n");
+        printf("\nDPA attack on AES-128 is successful.\n");
+        printf("Heckid bY Attacckan.\n\n");
+    } else {
+        printf("\nDPA attack on AES-128 failed.\n");
+        printf("Number of keys that match is %d.\n", ctr);
     }
     printf("Finished in %ld seconds...\n", time(NULL) - seconds);
 
+    free(doubled_T);
     free(T);
     return 0;
 }

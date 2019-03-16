@@ -3,15 +3,24 @@
 FILE *traces;
 uint32_t t, s, h = 256;
 uint8_t sbox[256];
-#define ANTSEC_S ((s / 24))
-#define ANTSEC_T (225)
+// (s / 27) IS MINIMUM WORKING VALUE FOR ANTSEC_S
+#define ANTSEC_S ((s / 27))
+// 150 IS MINIMUM WORKING VALUE FOR ANTSEC_T
+#define ANTSEC_T (150)
 uint8_t actual_key[16] = {0xCD, 0x97, 0x16, 0xE9, 0x5B, 0x42, 0xDD, 0x48,
                           0x69, 0x77, 0x2A, 0x34, 0x6A, 0x7F, 0x58, 0x13};
 
 int main(int argc, char *argv[]) {
-    traces = fopen(TRACEPATH, "r");
+    if (argc != 2) {
+        fprintf(
+            stderr,
+            "Incorrect Usage. Please use the program as ./attack ${FILE}\n");
+        return 0;
+    }
+
+    traces = fopen(argv[1], "r");
     if (traces == NULL) {
-        printf("<traces.dat> not found, exiting.\n");
+        fprintf(stderr, "File %s not found.\n", argv[1]);
         return 0;
     }
     compute_sbox_table();
@@ -26,15 +35,15 @@ int main(int argc, char *argv[]) {
 
     uint8_t k[1][16];
 
-    printf("Reading traces...\n");
-    int16_t *T = malloc(sizeof(uint16_t) * s * t); 
+    // printf("Reading traces...\n");
+    int16_t *T = malloc(sizeof(uint16_t) * s * t);
     read_trace_block(T);
 
     time_t seconds = time(NULL);
-    printf("Using %d traces and %d samples from starting point\n", ANTSEC_T,
-           ANTSEC_S);
-    printf(
-        "Calculating sums, square sums and standard deviations of traces...\n");
+    // printf("Using %d traces and %d samples from starting point\n", ANTSEC_T,
+    //    ANTSEC_S);
+    // printf(
+    // "Calculating sums, square sums and standard deviations of traces...\n");
     short *doubled_T = malloc(sizeof(short) * ANTSEC_S * ANTSEC_T);
     // printf("\n");
     long eTis[ANTSEC_S];
@@ -52,7 +61,7 @@ int main(int argc, char *argv[]) {
         sd_T[_s] = sqrt(ANTSEC_T * eT2is[_s] - eTis[_s] * eTis[_s]);
     }
     for (int b = 0; b < 16; ++b) {
-        printf("Calculating key[%d]:\n", b);
+        // printf("Calculating key[%d]:\n", b);
         short H[h][ANTSEC_T];
         for (int j = 0; j < ANTSEC_T; ++j) {
             for (int i = 0; i < h; ++i) {
@@ -61,7 +70,7 @@ int main(int argc, char *argv[]) {
         }
 
         float *results = malloc(sizeof(float) * ANTSEC_S * h);
-    
+
         for (int _h = 0; _h < h; ++_h) {
             long ehi = 0;
             long ehi2i = 0;
@@ -80,7 +89,7 @@ int main(int argc, char *argv[]) {
                 results[_h * ANTSEC_S + _s] = fabs(cov / (sd_H * sd_T[_s]));
             }
         }
-        
+
         float max_val = 0.0f;
         int max = -1;
         for (int _h = 0; _h < h; ++_h) {
@@ -92,10 +101,14 @@ int main(int argc, char *argv[]) {
             }
         }
         k[0][b] = (uint8_t)max;
-        printf("K[%d] = %c%c\n", b, itoh(max >> 4), itoh(max & 0x0F));
+        // printf("K[%d] = %c%c\n", b, itoh(max >> 4), itoh(max & 0x0F));
         free(results);
     }
-    print_text_block(1, k, 0);
+    fprintf(stdout,"Time taken \t = %lds\n", time(NULL) - seconds);
+    fprintf(stdout,"Number of Traces = %d\n", ANTSEC_T);
+    fprintf(stdout,"Key\t\t = ");
+    octetstr_wr(k[0], 16);
+    // print_text_block(1, k, 0);
     int ctr = 0;
     int equal = 1;
     for (int b = 0; b < 16; ++b) {
@@ -106,13 +119,14 @@ int main(int argc, char *argv[]) {
         }
     }
     if (equal == 1) {
-        printf("\nDPA attack on AES-128 is successful.\n");
-        printf("Heckid bY Attacckan.\n\n");
+        // printf("\nDPA attack on AES-128 is successful.\n");
+        // printf("Heckid bY Attacckan.\n\n");
     } else {
-        printf("\nDPA attack on AES-128 failed.\n");
-        printf("Number of keys that match is %d.\n", ctr);
+        fprintf(stderr, "DPA attack on AES-128 failed.\n");
+        fprintf(stderr, "Number of keys that match is %d.\n", ctr);
     }
-    printf("Finished in %ld seconds...\n", time(NULL) - seconds);
+    
+    // fprintf(stdout, "Finished in %ld seconds...\n", time(NULL) - seconds);
 
     free(doubled_T);
     free(T);
@@ -122,6 +136,23 @@ int main(int argc, char *argv[]) {
 char itoh(uint8_t n) {
     if (n < 16) return HEXSTRING[n];
     return 'Z';
+}
+
+void octetstr_wr(const uint8_t *x, int n_x) {
+    int len = 2 + 1 + 2 * (n_x) + 1; 
+    char s[len];
+    s[0] = itoh(n_x >> 4);
+    s[1] = itoh(n_x & 0x0F);
+    s[2] = ':';
+
+    for (int i = 0; i < n_x; ++i) {
+        s[2 * i + 3] = itoh(x[i] >> 4);
+        s[2 * i + 4] = itoh(x[i] & 0x0F);
+    }
+    s[2 * n_x + 3] = '\x00';
+    fprintf(stdout, "%s\n", s); 
+    // WRITE_BYTE('\x0D');
+    return;
 }
 
 void read_text_block(uint32_t x, uint8_t block[x][16]) {

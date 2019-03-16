@@ -6,11 +6,11 @@
 #include <stdlib.h>
 #include <math.h>
 #include <gsl/gsl_statistics.h>
+#include <time.h>
 
 #define TRACEPATH "traces.dat"
 #define WRITEPATH "results.dat"
 #define HEXSTRING "0123456789ABCDEF"
-// #define h 256
 
 #define READ_INT(n)                \
     {                              \

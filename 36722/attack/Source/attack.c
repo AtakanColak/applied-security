@@ -40,6 +40,8 @@ int main(int argc, char *argv[]) {
     int16_t *T = malloc(sizeof(uint16_t) * s * t);  //[s][t]
     read_trace_block(T);
 
+    time_t seconds = time(NULL);
+
     // printf("Casting traces to doubles...\n");
     double *doubled_T = malloc(sizeof(double) * ANTSEC_S * ANTSEC_T);
     // printf("\n");
@@ -97,7 +99,7 @@ int main(int argc, char *argv[]) {
         printf("KR-DPA attack on AES-128 is successful.\n");
         printf("Heckid bY Attacckan.\n");
     }
-    printf("Finished...\n");
+    printf("Finished in %ld seconds...\n", time(NULL) - seconds);
 
     free(T);
     return 0;

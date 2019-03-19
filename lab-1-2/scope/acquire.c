@@ -73,7 +73,7 @@ int main( int argc, char* argv[] ) {
     // Section 3.40, Page 71; Step  7: configure buffers
     TRY_SCOPE( ps2000aSetDataBuffer, scope, PS2000A_CHANNEL_A, A, samples, 0, PS2000A_RATIO_MODE_NONE );
     TRY_SCOPE( ps2000aSetDataBuffer, scope, PS2000A_CHANNEL_B, B, samples, 0, PS2000A_RATIO_MODE_NONE );
-  
+    
     // Section 3.18, Page 43; Step  8; transfer  buffers
     TRY_SCOPE( ps2000aGetValues, scope, 0, &samples, 1, PS2000A_RATIO_MODE_NONE, 0, &overflow );
 

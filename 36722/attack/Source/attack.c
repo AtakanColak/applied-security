@@ -1,5 +1,12 @@
 #include "attack.h"
 
+typedef uint8_t aes_gf28_t;
+aes_gf28_t AES_RC[10] = {0x01, 0x02, 0x04, 0x08, 0x10,
+                         0x20, 0x40, 0x80, 0x1B, 0x36};
+
+#define NB 4
+#define NR 9
+
 FILE *traces;
 uint32_t t, s, h = 256;
 uint8_t sbox[256];
@@ -7,8 +14,8 @@ uint8_t sbox[256];
 #define ANTSEC_S ((s / 27))
 // 150 IS MINIMUM WORKING VALUE FOR ANTSEC_T
 #define ANTSEC_T (150)
-uint8_t actual_key[16] = {0xCD, 0x97, 0x16, 0xE9, 0x5B, 0x42, 0xDD, 0x48,
-                          0x69, 0x77, 0x2A, 0x34, 0x6A, 0x7F, 0x58, 0x13};
+// uint8_t actual_key[16] = {0xCD, 0x97, 0x16, 0xE9, 0x5B, 0x42, 0xDD, 0x48,
+                        //   0x69, 0x77, 0x2A, 0x34, 0x6A, 0x7F, 0x58, 0x13};
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -23,6 +30,22 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "File %s not found.\n", argv[1]);
         return 0;
     }
+
+    // int mtc = 225;
+    // srand(time(NULL));
+    // uint8_t nr[mtc][16];
+    // for(int i = 0; i < mtc; ++i)
+    //     for(int j = 0; j < 16; ++j)
+    //         nr[i][j] = rand();
+
+    // int pid = fork();
+    // if (pid == 0) {
+    //     sleep(3);
+    //     //MAKE CONNECTION
+    //     //START SENDING ALL MESSAGES
+    //     return 0;
+    // }
+
     compute_sbox_table();
     READ_INT(t);
     READ_INT(s);
@@ -104,28 +127,30 @@ int main(int argc, char *argv[]) {
         // printf("K[%d] = %c%c\n", b, itoh(max >> 4), itoh(max & 0x0F));
         free(results);
     }
-    fprintf(stdout,"Time taken \t = %lds\n", time(NULL) - seconds);
-    fprintf(stdout,"Number of Traces = %d\n", ANTSEC_T);
-    fprintf(stdout,"Key\t\t = ");
-    octetstr_wr(k[0], 16);
+    fprintf(stdout, "Time taken \t = %lds\n", time(NULL) - seconds);
+    fprintf(stdout, "Number of Traces = %d\n", ANTSEC_T);
+    fprintf(stdout, "Key\t\t = ");
+    octetstr_wr(stdout, k[0], 16);
+    uint8_t cipher[16];
+    aes_enc(cipher, m[0], k[0]);
     // print_text_block(1, k, 0);
     int ctr = 0;
     int equal = 1;
     for (int b = 0; b < 16; ++b) {
-        if (k[0][b] != actual_key[b])
+        if (c[0][b] != cipher[b])
             equal = 0;
         else {
             ctr++;
         }
     }
     if (equal == 1) {
-        // printf("\nDPA attack on AES-128 is successful.\n");
-        // printf("Heckid bY Attacckan.\n\n");
+        fprintf(stdout, "\nDPA attack on AES-128 is successful.\n");
+        fprintf(stdout, "M[0] generates C[0] with recovered key.\n\n");
     } else {
         fprintf(stderr, "DPA attack on AES-128 failed.\n");
         fprintf(stderr, "Number of keys that match is %d.\n", ctr);
     }
-    
+
     // fprintf(stdout, "Finished in %ld seconds...\n", time(NULL) - seconds);
 
     free(doubled_T);
@@ -138,8 +163,8 @@ char itoh(uint8_t n) {
     return 'Z';
 }
 
-void octetstr_wr(const uint8_t *x, int n_x) {
-    int len = 2 + 1 + 2 * (n_x) + 1; 
+void octetstr_wr(FILE *dest, const uint8_t *x, int n_x) {
+    int len = 2 + 1 + 2 * (n_x) + 1;
     char s[len];
     s[0] = itoh(n_x >> 4);
     s[1] = itoh(n_x & 0x0F);
@@ -150,7 +175,7 @@ void octetstr_wr(const uint8_t *x, int n_x) {
         s[2 * i + 4] = itoh(x[i] & 0x0F);
     }
     s[2 * n_x + 3] = '\x00';
-    fprintf(stdout, "%s\n", s); 
+    fprintf(dest, "%s\n", s);
     // WRITE_BYTE('\x0D');
     return;
 }
@@ -223,6 +248,89 @@ uint8_t aes_enc_sbox(uint8_t a) {
         (a >> 5) ^ (a << 4) ^ (a >> 4);  // Left Bitwise Circular Shift
     // because left bitwise shift isn't cool enough
     return a;
+}
+
+// Works
+void sub_word(aes_gf28_t *src) {
+    for (int i = 0; i < 4; ++i) src[i] = aes_enc_sbox(src[i]);
+}
+
+// Works
+void rot_word(aes_gf28_t *src) {
+    aes_gf28_t temp = src[0];
+    for (int i = 0; i < 3; ++i) src[i] = src[i + 1];
+    src[3] = temp;
+}
+
+// Nk number of 32 bit word compromising Cipher Key
+
+// Works
+void aes_enc_exp_step(aes_gf28_t *rk, aes_gf28_t rc) {
+    aes_gf28_t temp[4];
+
+    int i = 0;
+    while (i < 4) {
+        for (int j = 0; j < 4; ++j) temp[j] = rk[4 * ((i + 3) % 4) + j];
+
+        if (i == 0) {
+            rot_word(temp);
+            sub_word(temp);
+            temp[0] ^= rc;
+        }
+
+        for (int j = 0; j < 4; ++j) rk[4 * i + j] ^= temp[j];
+
+        i = i + 1;
+    }
+}
+
+void aes_enc_rnd_key(aes_gf28_t *s, const aes_gf28_t *rk) {
+    for (int i = 0; i < 16; ++i) s[i] = s[i] ^ rk[i];
+}
+
+void aes_enc_rnd_sub(aes_gf28_t *s) {
+    for (int i = 0; i < 16; ++i) s[i] = aes_enc_sbox(s[i]);
+}
+
+void aes_enc_rnd_row(aes_gf28_t *s) {
+    AES_ENC_RND_ROW_STEP(1, 5, 9, 13, 13, 1, 5, 9);
+    AES_ENC_RND_ROW_STEP(2, 6, 10, 14, 10, 14, 2, 6);
+    AES_ENC_RND_ROW_STEP(3, 7, 11, 15, 7, 11, 15, 3);
+}
+
+void aes_enc_rnd_mix(aes_gf28_t *s) {
+    AES_ENC_RND_MIX_STEP(0, 1, 2, 3);
+    AES_ENC_RND_MIX_STEP(4, 5, 6, 7);
+    AES_ENC_RND_MIX_STEP(8, 9, 10, 11);
+    AES_ENC_RND_MIX_STEP(12, 13, 14, 15);
+}
+
+void aes_enc(uint8_t *r, const uint8_t *m, const uint8_t *k) {
+    aes_gf28_t rk[4 * NB], s[4 * NB];
+
+    // aes_gf28_t * rcp = AES_RC;
+    aes_gf28_t *rkp = rk;
+
+    memcpy(s, m, sizeof(aes_gf28_t) * 16);
+    memcpy(rkp, k, sizeof(aes_gf28_t) * 16);
+
+    // 1 initial round
+    aes_enc_rnd_key(s, rkp);
+    // NR - 1 iterated rounds
+    for (int i = 1; i < 10; ++i) {
+        aes_enc_rnd_sub(s);
+        aes_enc_rnd_row(s);
+        aes_enc_rnd_mix(s);
+        aes_enc_exp_step(rkp, AES_RC[i - 1]);
+        aes_enc_rnd_key(s, rkp);
+    }
+    // 1 final round
+    aes_enc_rnd_sub(s);
+    aes_enc_rnd_row(s);
+    aes_enc_exp_step(rkp, AES_RC[9]);
+    aes_enc_rnd_key(s, rkp);
+
+    memcpy(r, s, sizeof(aes_gf28_t) * 16);
 }
 
 void compute_sbox_table() {

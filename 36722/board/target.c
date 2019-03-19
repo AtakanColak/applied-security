@@ -388,6 +388,7 @@ int main(int argc, char *argv[])
     {
     case COMMAND_INSPECT:
     {
+      scale_gpio_wr(SCALE_GPIO_PIN_TRG, true);
       uint8_t t = SIZEOF_BLK;
       octetstr_wr(&t, 1);
       t = SIZEOF_KEY;

@@ -4,9 +4,6 @@ typedef uint8_t aes_gf28_t;
 aes_gf28_t AES_RC[10] = {0x01, 0x02, 0x04, 0x08, 0x10,
                          0x20, 0x40, 0x80, 0x1B, 0x36};
 
-#define NB 4
-#define NR 9
-
 FILE *traces;
 uint32_t t, s, h = 256;
 uint8_t sbox[256];
@@ -63,50 +60,35 @@ int main(int argc, char *argv[]) {
     read_trace_block(T);
 
     time_t seconds = time(NULL);
-    // printf("Using %d traces and %d samples from starting point\n", ANTSEC_T,
-    //    ANTSEC_S);
-    // printf(
-    // "Calculating sums, square sums and standard deviations of traces...\n");
-    short *doubled_T = malloc(sizeof(short) * ANTSEC_S * ANTSEC_T);
-    // printf("\n");
-    long eTis[ANTSEC_S];
-    long eT2is[ANTSEC_S];
-    memset(&eTis, 0, sizeof(long) * ANTSEC_S);
-    memset(&eT2is, 0, sizeof(long) * ANTSEC_S);
+    short *used_T = malloc(sizeof(short) * ANTSEC_S * ANTSEC_T);
+    long eTis[ANTSEC_S], eT2is[ANTSEC_S];
     float sd_T[ANTSEC_S];
     for (int _s = 0; _s < ANTSEC_S; ++_s) {
         for (int _t = 0; _t < ANTSEC_T; ++_t) {
-            doubled_T[ANTSEC_T * _s + _t] = T[t * _s + _t];
-            long y = (long)T[t * _s + _t];
-            eTis[_s] += y;
-            eT2is[_s] += y * y;
+            used_T[ANTSEC_T * _s + _t] = T[t * _s + _t];
         }
-        sd_T[_s] = sqrt(ANTSEC_T * eT2is[_s] - eTis[_s] * eTis[_s]);
+        sums_and_standard_deviation(&sd_T[_s], &eTis[_s], &eT2is[_s],
+                                    &used_T[ANTSEC_T * _s], ANTSEC_T);
     }
     for (int b = 0; b < 16; ++b) {
-        // printf("Calculating key[%d]:\n", b);
-        short H[h][ANTSEC_T];
+        short * H = malloc (sizeof(short) * h * ANTSEC_T);
         for (int j = 0; j < ANTSEC_T; ++j) {
             for (int i = 0; i < h; ++i) {
-                H[i][j] = __builtin_popcount(sbox[m[j][b] ^ i]);
+                H[i * ANTSEC_T + j] = __builtin_popcount(sbox[m[j][b] ^ i]);
             }
         }
 
         float *results = malloc(sizeof(float) * ANTSEC_S * h);
 
         for (int _h = 0; _h < h; ++_h) {
-            long ehi = 0;
-            long ehi2i = 0;
+            long ehi, ehi2i;
             long ehiTi[ANTSEC_S];
             memset(&ehiTi, 0, sizeof(long) * ANTSEC_S);
-            for (int _t = 0; _t < ANTSEC_T; ++_t) {
-                ehi += H[_h][_t];
-                ehi2i += H[_h][_t] * H[_h][_t];
-                for (int _s = 0; _s < ANTSEC_S; ++_s) {
-                    ehiTi[_s] += H[_h][_t] * doubled_T[ANTSEC_T * _s + _t];
-                }
-            }
-            double sd_H = sqrt(ANTSEC_T * ehi2i - ehi * ehi);
+            for (int _t = 0; _t < ANTSEC_T; ++_t)
+                for (int _s = 0; _s < ANTSEC_S; ++_s)
+                    ehiTi[_s] += H[_h * ANTSEC_T + _t] * used_T[ANTSEC_T * _s + _t];
+            float sd_H;
+            sums_and_standard_deviation(&sd_H, &ehi, &ehi2i, &H[_h * ANTSEC_T], ANTSEC_T);
             for (int _s = 0; _s < ANTSEC_S; ++_s) {
                 double cov = ANTSEC_T * ehiTi[_s] - ehi * eTis[_s];
                 results[_h * ANTSEC_S + _s] = fabs(cov / (sd_H * sd_T[_s]));
@@ -115,17 +97,29 @@ int main(int argc, char *argv[]) {
 
         k[b] = get_row_of_max(results, h, ANTSEC_S);
         free(results);
+        free(H);
     }
     fprintf(stdout, "Time taken \t = %lds\n", time(NULL) - seconds);
     fprintf(stdout, "Number of Traces = %d\n", ANTSEC_T);
     fprintf(stdout, "Key\t\t = ");
     octetstr_wr(stdout, k, 16);
-
     check_key(m[0], k, c[0]);
-
-    free(doubled_T);
+    free(used_T);
     free(T);
     return 0;
+}
+
+void sums_and_standard_deviation(float *sd_address, long *sum_address,
+                                 long *sum2_address, short *row, int row_size) {
+    *sum_address = 0;
+    *sum2_address = 0;
+    for (int _t = 0; _t < row_size; ++_t) {
+        // used_T[ANTSEC_T * _s + _t] = T[t * _s + _t];
+        long y = (long)row[_t];
+        *sum_address += y;
+        *sum2_address += y * y;
+    }
+    *sd_address = sqrt(ANTSEC_T * *sum2_address - *sum_address * *sum_address);
 }
 
 void check_key(uint8_t *m, uint8_t *k, uint8_t *c) {
@@ -250,21 +244,16 @@ uint8_t aes_enc_sbox(uint8_t a) {
     return a;
 }
 
-// Works
 void sub_word(aes_gf28_t *src) {
     for (int i = 0; i < 4; ++i) src[i] = aes_enc_sbox(src[i]);
 }
 
-// Works
 void rot_word(aes_gf28_t *src) {
     aes_gf28_t temp = src[0];
     for (int i = 0; i < 3; ++i) src[i] = src[i + 1];
     src[3] = temp;
 }
 
-// Nk number of 32 bit word compromising Cipher Key
-
-// Works
 void aes_enc_exp_step(aes_gf28_t *rk, aes_gf28_t rc) {
     aes_gf28_t temp[4];
 
@@ -306,7 +295,7 @@ void aes_enc_rnd_mix(aes_gf28_t *s) {
 }
 
 void aes_enc(uint8_t *r, const uint8_t *m, const uint8_t *k) {
-    aes_gf28_t rk[4 * NB], s[4 * NB];
+    aes_gf28_t rk[16], s[16];
 
     // aes_gf28_t * rcp = AES_RC;
     aes_gf28_t *rkp = rk;

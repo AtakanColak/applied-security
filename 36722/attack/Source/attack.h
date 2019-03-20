@@ -68,6 +68,7 @@ void compute_sbox_table();
 void octetstr_wr(FILE *dest, const uint8_t *x, int n_x);
 void aes_enc(uint8_t *r, const uint8_t *m, const uint8_t *k);
 void check_key(uint8_t *m, uint8_t *k, uint8_t *c);
+void sums_and_standard_deviation(float * sd_address, long * sum_address, long * sum2_address, short * row, int row_size);
 char itoh(uint8_t n);
 int get_row_of_max(float *array, int row, int col);
 #endif

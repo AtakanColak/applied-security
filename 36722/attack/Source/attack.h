@@ -64,8 +64,10 @@
 void read_text_block(uint32_t x, uint8_t block[x][16]);
 void print_text_block(uint32_t x, uint8_t block[x][16], uint32_t index);
 void read_trace_block(int16_t *block);
-char itoh(uint8_t n);
 void compute_sbox_table();
 void octetstr_wr(FILE *dest, const uint8_t *x, int n_x);
 void aes_enc(uint8_t *r, const uint8_t *m, const uint8_t *k);
+void check_key(uint8_t *m, uint8_t *k, uint8_t *c);
+char itoh(uint8_t n);
+int get_row_of_max(float *array, int row, int col);
 #endif

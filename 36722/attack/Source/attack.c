@@ -15,7 +15,7 @@ uint8_t sbox[256];
 // 150 IS MINIMUM WORKING VALUE FOR ANTSEC_T
 #define ANTSEC_T (150)
 // uint8_t actual_key[16] = {0xCD, 0x97, 0x16, 0xE9, 0x5B, 0x42, 0xDD, 0x48,
-                        //   0x69, 0x77, 0x2A, 0x34, 0x6A, 0x7F, 0x58, 0x13};
+//   0x69, 0x77, 0x2A, 0x34, 0x6A, 0x7F, 0x58, 0x13};
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
     uint8_t c[t][16];
     read_text_block(t, c);
 
-    uint8_t k[1][16];
+    uint8_t k[16];
 
     // printf("Reading traces...\n");
     int16_t *T = malloc(sizeof(uint16_t) * s * t);
@@ -71,13 +71,13 @@ int main(int argc, char *argv[]) {
     // printf("\n");
     long eTis[ANTSEC_S];
     long eT2is[ANTSEC_S];
+    memset(&eTis, 0, sizeof(long) * ANTSEC_S);
+    memset(&eT2is, 0, sizeof(long) * ANTSEC_S);
     float sd_T[ANTSEC_S];
     for (int _s = 0; _s < ANTSEC_S; ++_s) {
-        eTis[_s] = 0;
-        eT2is[_s] = 0;
         for (int _t = 0; _t < ANTSEC_T; ++_t) {
+            doubled_T[ANTSEC_T * _s + _t] = T[t * _s + _t];
             long y = (long)T[t * _s + _t];
-            doubled_T[ANTSEC_T * _s + _t] = (short)y;
             eTis[_s] += y;
             eT2is[_s] += y * y;
         }
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
             long ehi = 0;
             long ehi2i = 0;
             long ehiTi[ANTSEC_S];
-            for (int _s = 0; _s < ANTSEC_S; ++_s) ehiTi[_s] = 0;
+            memset(&ehiTi, 0, sizeof(long) * ANTSEC_S);
             for (int _t = 0; _t < ANTSEC_T; ++_t) {
                 ehi += H[_h][_t];
                 ehi2i += H[_h][_t] * H[_h][_t];
@@ -113,49 +113,49 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        float max_val = 0.0f;
-        int max = -1;
-        for (int _h = 0; _h < h; ++_h) {
-            for (int _s = 0; _s < ANTSEC_S; ++_s) {
-                if (max_val < results[_h * ANTSEC_S + _s]) {
-                    max_val = results[_h * ANTSEC_S + _s];
-                    max = _h;
-                }
-            }
-        }
-        k[0][b] = (uint8_t)max;
-        // printf("K[%d] = %c%c\n", b, itoh(max >> 4), itoh(max & 0x0F));
+        k[b] = get_row_of_max(results, h, ANTSEC_S);
         free(results);
     }
     fprintf(stdout, "Time taken \t = %lds\n", time(NULL) - seconds);
     fprintf(stdout, "Number of Traces = %d\n", ANTSEC_T);
     fprintf(stdout, "Key\t\t = ");
-    octetstr_wr(stdout, k[0], 16);
-    uint8_t cipher[16];
-    aes_enc(cipher, m[0], k[0]);
-    // print_text_block(1, k, 0);
-    int ctr = 0;
-    int equal = 1;
-    for (int b = 0; b < 16; ++b) {
-        if (c[0][b] != cipher[b])
-            equal = 0;
-        else {
-            ctr++;
-        }
-    }
-    if (equal == 1) {
-        fprintf(stdout, "\nDPA attack on AES-128 is successful.\n");
-        fprintf(stdout, "M[0] generates C[0] with recovered key.\n\n");
-    } else {
-        fprintf(stderr, "DPA attack on AES-128 failed.\n");
-        fprintf(stderr, "Number of keys that match is %d.\n", ctr);
-    }
+    octetstr_wr(stdout, k, 16);
 
-    // fprintf(stdout, "Finished in %ld seconds...\n", time(NULL) - seconds);
+    check_key(m[0], k, c[0]);
 
     free(doubled_T);
     free(T);
     return 0;
+}
+
+void check_key(uint8_t *m, uint8_t *k, uint8_t *c) {
+    uint8_t cipher[16];
+    aes_enc(cipher, m, k);
+    int ctr = 0;
+    for (int b = 0; b < 16; ++b)
+        if (c[b] == cipher[b]) ctr++;
+    if (ctr == 16)
+        fprintf(stdout,
+                "\nDPA attack on AES-128 is successful.\nM[0] generates C[0] "
+                "with recovered key.\n\n");
+    else
+        fprintf(
+            stderr,
+            "DPA attack on AES-128 failed.\nNumber of keys that match is %d.\n",
+            ctr);
+}
+
+int get_row_of_max(float *array, int row, int col) {
+    int max_row = -1;
+    float max_val = 0.0f;
+    for (int r = 0; r < row; ++r)
+        for (int c = 0; c < col; ++c)
+            if (max_val < array[col * r + c]) {
+                max_val = array[col * r + c];
+                max_row = r;
+            }
+
+    return max_row;
 }
 
 char itoh(uint8_t n) {

@@ -28,10 +28,10 @@ int main(int argc, char *argv[]) {
     CheckError(error, "Error at {sp_set_stopbits}\n");
     error = sp_set_parity(port, SP_PARITY_NONE);
     CheckError(error, "Error at {sp_set_parity}\n");
-    char test[6] = "01:00\x0D";
-    int returned = sp_blocking_write(port, test[0], 6, 1000);
-    fprintf(stdout, "%d bytes have been written.\n", returned);
-    int waiting = sp_output_waiting(port); 
+    // char test[6] = "01:00\x0D";
+    // int returned = sp_blocking_write(port, test, 6, 1000);
+    // fprintf(stdout, "%d bytes have been written.\n", returned);
+    int waiting = sp_output_waiting(port);
     fprintf(stdout, "%d bytes are waiting to be outputted....\n", waiting);
     error = sp_close(port);
     CheckError(error, "Error at {sp_close}\n");

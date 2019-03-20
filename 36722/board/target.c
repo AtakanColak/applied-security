@@ -7,6 +7,10 @@
 
 #include "target.h"
 
+//1. INSERT RANDOM LOAD TO SUBBYTES
+//2. RANDOM START POINT SBOX
+//3. 
+
 typedef uint8_t aes_gf28_t;
 typedef uint32_t aes_gf28_word;
 typedef uint8_t gf28_k;

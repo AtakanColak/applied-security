@@ -20,7 +20,7 @@ int ghost = 0;
 aes_gf28_t AES_RC[10] = {0x01, 0x02, 0x04, 0x08, 0x10,
                          0x20, 0x40, 0x80, 0x1B, 0x36};
 aes_gf28_t sbox_table[256];
-aes_gf28_t maskbox_table[256];
+aes_gf28_t maskbox_table[16][256];
 #define NB 4
 #define NR 9
 
@@ -195,13 +195,15 @@ aes_gf28_t aes_enc_sbox(aes_gf28_t a) {
 void compute_sbox_table() {
     for (int b = 0; b < 256; ++b) sbox_table[b] = aes_enc_sbox(b);
 }
-void compute_maskbox_table(uint8_t * r) {
-    uint8_t sboxmask = r[r[1] & 0xF] & 0xF;
-    for (int b = 0; b < 256; ++b) { 
-      maskbox_table[b] = aes_enc_sbox(b ^ sboxmask);
+void compute_maskbox_table(uint8_t *r) {
+    
+    for (int rnd = 0; rnd < SIZEOF_RND; ++rnd) {
+        uint8_t sboxmask = r[rnd];
+        for (int b = 0; b < 256; ++b) {
+            maskbox_table[rnd][b ^ sboxmask] = aes_enc_sbox(b);
+        }
     }
 }
-
 
 // Works
 void sub_word(aes_gf28_t *src) {
@@ -241,19 +243,19 @@ void aes_enc_rnd_key(aes_gf28_t *s, const aes_gf28_t *rk) {
     for (int i = 0; i < 16; ++i) s[i] = s[i] ^ rk[i];
 }
 
-void aes_enc_rnd_sub(aes_gf28_t *s, const uint8_t *r) {
+void aes_enc_rnd_sub(aes_gf28_t *s, const uint8_t *r, const uint8_t rnd) {
     int ctr = 0;
     int itr = r[r[0] & 0xF] & 0xF;
-    uint8_t sboxmask = r[r[1] & 0xF] & 0xF;
-    while(ctr < 16) {
-      __asm__ __volatile__( "nop");
-      __asm__ __volatile__( "nop");
-      s[itr] = maskbox_table[s[itr] ^ sboxmask];
-      itr = (itr + 1) & 0xF;
-      ctr++;
+    uint8_t sboxmask = r[rnd];
+    while (ctr < 16) {
+        __asm__ __volatile__("nop");
+        __asm__ __volatile__("nop");
+        s[itr] = maskbox_table[rnd][s[itr] ^ sboxmask];
+        itr = (itr + 1) & 0xF;
+        ctr++;
     }
-    // for (int i = 0; i < 16; ++i) { 
-    //   s[i] = sbox_table[s[i]]; 
+    // for (int i = 0; i < 16; ++i) {
+    //   s[i] = sbox_table[s[i]];
     //   }
 }
 
@@ -279,9 +281,7 @@ void aes_enc_rnd_mix(aes_gf28_t *s) {
  * \param[in]  r   some         randomness
  */
 
-void aes_init(const uint8_t *k, const uint8_t *r) {
-    return;
-}
+void aes_init(const uint8_t *k, const uint8_t *r) { return; }
 
 /** Perform    an AES-128 encryption of a plaintext m under a cipher key k, to
  * yield the corresponding ciphertext c.
@@ -305,14 +305,14 @@ void aes(uint8_t *c, const uint8_t *m, const uint8_t *k, const uint8_t *r) {
     aes_enc_rnd_key(s, rkp);
     // NR - 1 iterated rounds
     for (int i = 1; i < 10; ++i) {
-        aes_enc_rnd_sub(s, r);
+        aes_enc_rnd_sub(s, r, i);
         aes_enc_rnd_row(s);
         aes_enc_rnd_mix(s);
         aes_enc_exp_step(rkp, AES_RC[i - 1]);
         aes_enc_rnd_key(s, rkp);
     }
     // 1 final round
-    aes_enc_rnd_sub(s, r);
+    aes_enc_rnd_sub(s, r, 10);
     aes_enc_rnd_row(s);
     aes_enc_exp_step(rkp, AES_RC[9]);
     aes_enc_rnd_key(s, rkp);
@@ -358,8 +358,8 @@ int main(int argc, char *argv[]) {
     }
 
     uint8_t cmd[1], c[SIZEOF_BLK], m[SIZEOF_BLK],
-        k[SIZEOF_KEY] = {0xA1, 0xA2, 0xD5, 0x52, 0x76, 0x67, 0x29, 0xA6,
-                         0xF0, 0xED, 0x1E, 0xD8, 0xD8, 0x02, 0xEB, 0xFF},
+        // k[SIZEOF_KEY] = {0xA1, 0xA2, 0xD5, 0x52, 0x76, 0x67, 0x29, 0xA6,
+        //                  0xF0, 0xED, 0x1E, 0xD8, 0xD8, 0x02, 0xEB, 0xFF},
         r[SIZEOF_RND];
     uint8_t k1[SIZEOF_KEY] = {0xCD, 0x97, 0x16, 0xE9, 0x5B, 0x42, 0xDD, 0x48,
                               0x69, 0x77, 0x2A, 0x34, 0x6A, 0x7F, 0x58, 0x13};

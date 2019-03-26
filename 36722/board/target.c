@@ -17,10 +17,14 @@ typedef uint8_t gf28_k;
 
 int ghost = 0;
 
+uint8_t mask = 0;
+uint8_t mi[4];
+uint8_t mi_primes[4];
+
 aes_gf28_t AES_RC[10] = {0x01, 0x02, 0x04, 0x08, 0x10,
                          0x20, 0x40, 0x80, 0x1B, 0x36};
 aes_gf28_t sbox_table[256];
-aes_gf28_t maskbox_table[16][256];
+aes_gf28_t maskbox_table[256];
 #define NB 4
 #define NR 9
 
@@ -61,6 +65,34 @@ aes_gf28_t maskbox_table[16][256];
         s[c] = __a1 ^ __b1 ^ __c2 ^ __d3;      \
         s[d] = __a3 ^ __b1 ^ __c1 ^ __d2;      \
     }
+
+    #define AES_ENC_RND_MIX_STEP_MASKS       \
+        {                                          \
+mask = r[0];\
+          mi[0] = r[1];\
+          mi[1] = r[2];\
+          mi[2] = r[3];\
+          mi[3] = r[4];\
+            aes_gf28_t __a1 = r[1];                \
+            aes_gf28_t __b1 = r[2];                \
+            aes_gf28_t __c1 = r[3];                \
+            aes_gf28_t __d1 = r[4];                \
+                                                   \
+            aes_gf28_t __a2 = aes_gf28_mulx(__a1); \
+            aes_gf28_t __b2 = aes_gf28_mulx(__b1); \
+            aes_gf28_t __c2 = aes_gf28_mulx(__c1); \
+            aes_gf28_t __d2 = aes_gf28_mulx(__d1); \
+                                                   \
+            aes_gf28_t __a3 = __a1 ^ __a2;         \
+            aes_gf28_t __b3 = __b1 ^ __b2;         \
+            aes_gf28_t __c3 = __c1 ^ __c2;         \
+            aes_gf28_t __d3 = __d1 ^ __d2;         \
+                                                   \
+            mi_primes[0] = __a2 ^ __b3 ^ __c1 ^ __d1;      \
+            mi_primes[1] = __a1 ^ __b2 ^ __c3 ^ __d1;      \
+            mi_primes[2] = __a1 ^ __b1 ^ __c2 ^ __d3;      \
+            mi_primes[3] = __a3 ^ __b1 ^ __c1 ^ __d2;      \
+        }
 
 void octetstr_wr(const uint8_t *x, int n_x);
 
@@ -195,14 +227,11 @@ aes_gf28_t aes_enc_sbox(aes_gf28_t a) {
 void compute_sbox_table() {
     for (int b = 0; b < 256; ++b) sbox_table[b] = aes_enc_sbox(b);
 }
-void compute_maskbox_table(uint8_t *r) {
-    
-    for (int rnd = 0; rnd < SIZEOF_RND; ++rnd) {
-        uint8_t sboxmask = r[rnd];
+void compute_maskbox_table() {
         for (int b = 0; b < 256; ++b) {
-            maskbox_table[rnd][b ^ sboxmask] = aes_enc_sbox(b);
+            maskbox_table[b ^ mask] = sbox_table[b] ^ mask;
         }
-    }
+
 }
 
 // Works
@@ -219,13 +248,13 @@ void rot_word(aes_gf28_t *src) {
 
 // Nk number of 32 bit word compromising Cipher Key
 
-// Works
 void aes_enc_exp_step(aes_gf28_t *rk, aes_gf28_t rc) {
     aes_gf28_t temp[4];
 
     int i = 0;
     while (i < 4) {
-        for (int j = 0; j < 4; ++j) temp[j] = rk[4 * ((i + 3) % 4) + j];
+        for (int j = 0; j < 4; ++j)
+            temp[j] = rk[4 * ((i + 3) % 4) + j];
 
         if (i == 0) {
             rot_word(temp);
@@ -239,24 +268,19 @@ void aes_enc_exp_step(aes_gf28_t *rk, aes_gf28_t rc) {
     }
 }
 
-void aes_enc_rnd_key(aes_gf28_t *s, const aes_gf28_t *rk) {
-    for (int i = 0; i < 16; ++i) s[i] = s[i] ^ rk[i];
+void aes_enc_rnd_key(aes_gf28_t *s, aes_gf28_t *rk) {
+    for (int i = 0; i < 16; ++i)
+      s[i] = s[i] ^ rk[i];
 }
 
-void aes_enc_rnd_sub(aes_gf28_t *s, const uint8_t *r, const uint8_t rnd) {
-    int ctr = 0;
-    int itr = r[r[0] & 0xF] & 0xF;
-    uint8_t sboxmask = r[rnd];
-    while (ctr < 16) {
-        __asm__ __volatile__("nop");
-        __asm__ __volatile__("nop");
-        s[itr] = maskbox_table[rnd][s[itr] ^ sboxmask];
-        itr = (itr + 1) & 0xF;
-        ctr++;
-    }
-    // for (int i = 0; i < 16; ++i) {
-    //   s[i] = sbox_table[s[i]];
-    //   }
+void aes_enc_rnd_key_init(aes_gf28_t *s, const aes_gf28_t *rk, const aes_gf28_t *r) {
+    for (int i = 0; i < 16; ++i)
+      s[i] = s[i] ^ rk[i] ^ mask ^ mi_primes[i % 4];
+}
+
+void aes_enc_rnd_sub(aes_gf28_t *s) {
+  for (int i = 0; i < 16; ++i)
+    s[i] = maskbox_table[s[i]];
 }
 
 void aes_enc_rnd_row(aes_gf28_t *s) {
@@ -270,6 +294,11 @@ void aes_enc_rnd_mix(aes_gf28_t *s) {
     AES_ENC_RND_MIX_STEP(4, 5, 6, 7);
     AES_ENC_RND_MIX_STEP(8, 9, 10, 11);
     AES_ENC_RND_MIX_STEP(12, 13, 14, 15);
+    // AES_ENC_RND_MIX_STEP_MASKED(0, 1, 2, 3, 1);
+    // AES_ENC_RND_MIX_STEP_MASKED(4, 5, 6, 7, 2);
+    // AES_ENC_RND_MIX_STEP_MASKED(8, 9, 10, 11, 3);
+    // AES_ENC_RND_MIX_STEP_MASKED(12, 13, 14, 15, 4);
+    // AES_ENC_RND_MIX_STEP_MASKS(r[1],r[2],r[3],r[4]);
 }
 
 /** Initialise an AES-128 encryption, e.g., expand the cipher key k into round
@@ -292,7 +321,21 @@ void aes_init(const uint8_t *k, const uint8_t *r) { return; }
  * \param[in]  r   some         randomness
  */
 
-void aes(uint8_t *c, const uint8_t *m, const uint8_t *k, const uint8_t *r) {
+void initial_mask( uint8_t *s) {
+  for(int i = 0; i < 4; ++i)
+    for(int j = 0; j < 4; ++j) {
+      s[i * 4 + j] = s[i * 4 + j] ^ mi_primes[i];
+    }
+}
+
+void re_mask( uint8_t *s, const uint8_t *r) {
+  for(int i = 0; i < 4; ++i)
+    for(int j = 0; j < 4; ++j) {
+      s[i * 4 + j] = s[i * 4 + j] ^ mi[i];
+    }
+}
+
+void aes(uint8_t *c, const uint8_t *m, const uint8_t *k, uint8_t *r) {
     aes_gf28_t rk[16], s[16];
 
     // aes_gf28_t * rcp = AES_RC;
@@ -302,21 +345,26 @@ void aes(uint8_t *c, const uint8_t *m, const uint8_t *k, const uint8_t *r) {
     memcpy(rkp, k, sizeof(aes_gf28_t) * 16);
 
     // 1 initial round
-    aes_enc_rnd_key(s, rkp);
+
+    initial_mask(s);
+    aes_enc_rnd_key_init(s, rkp, r);
     // NR - 1 iterated rounds
     for (int i = 1; i < 10; ++i) {
-        aes_enc_rnd_sub(s, r, i);
+        aes_enc_rnd_sub(s);
         aes_enc_rnd_row(s);
+        re_mask(s, r);
         aes_enc_rnd_mix(s);
         aes_enc_exp_step(rkp, AES_RC[i - 1]);
         aes_enc_rnd_key(s, rkp);
     }
     // 1 final round
-    aes_enc_rnd_sub(s, r, 10);
+    aes_enc_rnd_sub(s);
     aes_enc_rnd_row(s);
+
     aes_enc_exp_step(rkp, AES_RC[9]);
     aes_enc_rnd_key(s, rkp);
-
+    for(int i =0; i < 16; ++i)
+      s[i] = s[i] ^ (int)mask;
     memcpy(c, s, sizeof(aes_gf28_t) * 16);
     return;
 }
@@ -357,7 +405,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    uint8_t cmd[1], c[SIZEOF_BLK], m[SIZEOF_BLK],
+    uint8_t cmd[1], c[SIZEOF_BLK], msg[SIZEOF_BLK],
         // k[SIZEOF_KEY] = {0xA1, 0xA2, 0xD5, 0x52, 0x76, 0x67, 0x29, 0xA6,
         //                  0xF0, 0xED, 0x1E, 0xD8, 0xD8, 0x02, 0xEB, 0xFF},
         r[SIZEOF_RND];
@@ -374,7 +422,6 @@ int main(int argc, char *argv[]) {
         }
         switch (cmd[0]) {
             case COMMAND_INSPECT: {
-                scale_gpio_wr(SCALE_GPIO_PIN_TRG, true);
                 uint8_t t = SIZEOF_BLK;
                 octetstr_wr(&t, 1);
                 t = SIZEOF_KEY;
@@ -385,17 +432,19 @@ int main(int argc, char *argv[]) {
                 break;
             }
             case COMMAND_ENCRYPT: {
-                if (SIZEOF_BLK != octetstr_rd(m, SIZEOF_BLK)) {
+                if (SIZEOF_BLK != octetstr_rd(msg, SIZEOF_BLK)) {
                     break;
                 }
                 if (SIZEOF_RND != octetstr_rd(r, SIZEOF_RND)) {
                     break;
                 }
                 compute_maskbox_table(r);
+
+                AES_ENC_RND_MIX_STEP_MASKS;
                 aes_init(k1, r);
 
                 scale_gpio_wr(SCALE_GPIO_PIN_TRG, true);
-                aes(c, m, k1, r);
+                aes(c, msg, k1, r);
                 scale_gpio_wr(SCALE_GPIO_PIN_TRG, false);
 
                 octetstr_wr(c, SIZEOF_BLK);

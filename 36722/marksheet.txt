@@ -16,19 +16,21 @@
 So that we can calibrate and improve the assignment in the future, give us
 a rough idea how long (in hours) you spent on it *in total*:
 
-effort : [...] hours
+effort : 40 hours
 
 -------------------------------------------------------------------------------
 
 3. Citation
 
 Clearly it might have an influence on your mark, but the use of third-party
-resources *is* allowed *if* correctly cited (unless explicitly prohibited 
-by the assignment description of course).  Let us know what third-party 
-source code or resources you used (if any) so it's clear what's your work 
+resources *is* allowed *if* correctly cited (unless explicitly prohibited
+by the assignment description of course).  Let us know what third-party
+source code or resources you used (if any) so it's clear what's your work
 and what isn't:
 
-[...]
+For optimising the performance of DPA attack I used the method suggested by this paper:
+
+[1] Socha, Petr, et al. "Optimization of Pearson correlation coefficient calculation for DPA and comparison of different approaches." 2017 IEEE 20th International Symposium on Design and Diagnostics of Electronic Circuits & Systems (DDECS). IEEE, 2017.
 
 -------------------------------------------------------------------------------
 
@@ -38,19 +40,19 @@ The following gives a stage-by-stage description of the assignment marking
 scheme.  Note this acts as an indicative guideline only, including weights
 for each more obvious aspect (e.g., functional correctness); other aspects
 outside this list can warrant an increase/decrease in marks, with examples
-including hard to quantify features such as style, efficiency, robustness, 
+including hard to quantify features such as style, efficiency, robustness,
 generality, or realism of a solution.  Put another way, identifying then
 reasoning about these latter aspects forms part of the assessment, so they
 are not (necessarily) detailed explicitly.
 
-[?] Stage 1 : a  attack target  implementation                       ( 30%)
+[X] Stage 1 : a  attack target  implementation                       ( 30%)
 
     Stage 2 : an attack         implementation
-[?]           - an   assisted (or   dependent) solution              ( 30%)
+[X]           - an   assisted (or   dependent) solution              ( 30%)
                 *OR*
-[?]           - an unassisted (or independent) solution              ( 40%)
+[*]           - an unassisted (or independent) solution              ( 40%)
 
-[?] Stage 3 : a  countermeasure implementation                       ( 30%)
+[X] Stage 3 : a  countermeasure implementation                       ( 30%)
 
                                                                      ------
                                                                      (100%)
@@ -62,7 +64,71 @@ are not (necessarily) detailed explicitly.
 Any other documentation, notes or comments that you think are important or
 might be easy to overlook (e.g., a subtle issue or technique in associated
 source code) should go here:
+-------------------------------------------------------------------------------
 
-[...]
+5.1 STAGE 1
+
+There were some issues with Putty configuration, some extra byte existing somewhere within the buffer. It is solved and hopefully won't be crashing the program anymore.
+
+-------------------------------------------------------------------------------
+
+5.2 STAGE 2 ASSISTED SOLUTION
+
+Given the traces file path, reads the traces and attacks SubBytes step of the first round of AES, using hamming weight and pearson correlation coefficient.
+
+-------------------------------------------------------------------------------
+
+5.2.1 STDERR and STDOUT
+
+At the end, the program prints out to stdout time taken for the calculation, number of traces used, and the recovered key. It then encrypts the plaintext with the recovered key and checks if the result is equal to the ciphertext. If there are any errors at any point, it prints them out to stderr. If you have a different program that is reading stdout, you will need to change the print statements of main function at lines 102, 103, 104 and of check_key function at 133, 134.
+
+-------------------------------------------------------------------------------
+
+5.2.2 ANTSEC_S and ANTSEC_T
+
+The value defined as ANTSEC_S is the number of samples that calculation uses from the beginning of the program. This value is defined from the fact that the location of the SubBytes of the first round on the array of samples is fairly close to the beginning and it is simply unnecessary to compute the correlation coefficients for the rest of of the array. It is currently set as (s / 27) as the minimum value, which I've reached by testing, starting from (s / 2) as it was obvious that the first round was going to be withing the first half of the sample array. In case there is a change in the number of the samples, it might be necessary to increase this value, for such cases my recommendation will be (s / 8).
+
+The value defined as ANTSEC_T is simply the number of different traces that the calculation uses. In my test traces.dat, T was equal to 1000, however the lectures clearly showed about 200 traces were sufficient for a successfull attack. Therefore I started this value as 225, being able to reduce it to 150 for my test data by testing by hand. I really do think a change in the trace data set might require you to increase ANTSEC_T, therefore if the initial run is unsuccessfull, my recommendation will be to increase it to 250 to make sure.
+
+Please do note that increasing ANTSEC_S and ANTSEC_T values will increase the runtime considerably.
+
+-------------------------------------------------------------------------------
+
+5.2.3 OPTIMIZATION
+
+Initial design was a naive implementation by me that calculated pearson correlation, it took around 20 minutes and didn't recover a successful key.
+
+Then I included GSL (GNU Scientific Library) in order to calculate pearson correlation, code was relatively simpler and took around 128 seconds to recover the key.
+
+I wasn't happy with recalculating means and standard deviations, so I instead used GSL's mean, standard deviation and covariance functions to avoid recomputing values that were already calculated before. I didn't observe considerable improvement in runtime.
+
+Then I came across the paper written by [1] and wrote my own code to implement its suggested "Naive Pass Approach" in calculating pearson correlation coefficient. For a scaleable solution with memory limitations, I recognized that their "Incremental One Pass" approach was preferable, however I recognized this particular assignment didn't include such boundaries, so I decided to use "Naive Pass Aproach" because it was reported by them to be %25 faster as a trade off from its expensive memory usage. Now the program took around 90 seconds to recover the key.
+
+Lastly I tested and applied minimum ANTSEC_S and ANTSEC_T values that were possible, which reduced the runtime to 37 seconds.
+
+-------------------------------------------------------------------------------
+
+5.2.4 STAGE 2 UNASSISTED SOLUTION
+
+As an attempt to this part, I tried to use <libserialport.h> in order to establish a serial communication with the scale board, however my attempts have been unsuccessful and didn't pursue this further. My last attempt can be seen in tryport.c file.
+
+I don't know why it doesn't work, but I also noticed a relative lack of online support where different people suggested different code, and therefore I believe an example communication code should be given in order to fix this problem.
+
+You can compile tryport.c code by using the same makefile, "make tryport" instruction to be exact.
+-------------------------------------------------------------------------------
+5.3 STAGE 3 COUNTERMEASURE IMPLEMENTATION
+
+Gets 6 random bytes
+
+Masking is done as described in the lectures
+
+m corresponds to r[0]
+m1 corresponts to r[1]
+and so on
+then m primes for mix cols is calculated and stored
+sub bytes masking is also precomputed
+number of nops to be executed before aes is r[5], which means there is a 0-255 possible clock cycle shifts
+
+used given compiled attack, attack wasnt able to recover the correct cipher key, so hopefully defense was successful
 
 -------------------------------------------------------------------------------

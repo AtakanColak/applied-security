@@ -15,7 +15,7 @@
 
 #define SIZEOF_BLK      (   16 )
 #define SIZEOF_KEY      (   16 )
-#define SIZEOF_RND      (   5 )
+#define SIZEOF_RND      (   6 )
 
 
 #endif

@@ -17,6 +17,7 @@ typedef uint8_t gf28_k;
 
 int ghost = 0;
 
+uint8_t nop = 0;
 uint8_t mask = 0;
 uint8_t mi[4];
 uint8_t mi_primes[4];
@@ -69,6 +70,7 @@ aes_gf28_t maskbox_table[256];
     #define AES_ENC_RND_MIX_STEP_MASKS       \
         {                                          \
 mask = r[0];\
+nop = r[5];\
           mi[0] = r[1];\
           mi[1] = r[2];\
           mi[2] = r[3];\
@@ -273,11 +275,6 @@ void aes_enc_rnd_key(aes_gf28_t *s, aes_gf28_t *rk) {
       s[i] = s[i] ^ rk[i];
 }
 
-void aes_enc_rnd_key_init(aes_gf28_t *s, const aes_gf28_t *rk, const aes_gf28_t *r) {
-    for (int i = 0; i < 16; ++i)
-      s[i] = s[i] ^ rk[i];// ^ mask ^ mi_primes[i % 4];
-}
-
 void aes_enc_rnd_sub(aes_gf28_t *s) {
   for (int i = 0; i < 16; ++i)
     s[i] = maskbox_table[s[i]];
@@ -334,6 +331,12 @@ void apply_mi(uint8_t *s) {
 void apply_m(uint8_t *s) {
     for (int i = 0; i < 16; ++i) s[i] = s[i] ^ mask;
 }
+void apply_nop() {
+  for(int i = 0; i < nop; ++i) {
+    __asm__ __volatile__("nop");
+  }
+}
+
 
 void aes(uint8_t *c, const uint8_t *m, const uint8_t *k) {
     aes_gf28_t rk[16], s[16];
@@ -345,10 +348,11 @@ void aes(uint8_t *c, const uint8_t *m, const uint8_t *k) {
     memcpy(rkp, k, sizeof(aes_gf28_t) * 16);
 
     // 1 initial round
+    apply_nop();
     aes_enc_rnd_key(s, rkp);
     apply_m(s);
     // apply_miprimes(s);
-    
+
     // NR - 1 iterated rounds
     for (int i = 1; i < 10; ++i) {
         aes_enc_rnd_sub(s);
@@ -439,11 +443,11 @@ int main(int argc, char *argv[]) {
                 if (SIZEOF_RND != octetstr_rd(r, SIZEOF_RND)) {
                     break;
                 }
-                compute_maskbox_table(r);
+
 
                 AES_ENC_RND_MIX_STEP_MASKS;
                 aes_init(k1, r);
-
+compute_maskbox_table();
                 scale_gpio_wr(SCALE_GPIO_PIN_TRG, true);
                 aes(c, msg, k1);
                 scale_gpio_wr(SCALE_GPIO_PIN_TRG, false);

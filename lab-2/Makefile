@@ -23,5 +23,5 @@
 rm:
 	rm -f ataes
 
-ataes :
+ataes:
 	gcc -Wall -std=gnu99 -O3 ataes.c -o ataes -lgmp -lcrypto

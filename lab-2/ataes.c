@@ -192,7 +192,7 @@ void aes_enc_rnd_key(aes_gf28_t *s, aes_gf28_t *rk) {
 
 void aes_enc_rnd_key_init(aes_gf28_t *s, const aes_gf28_t *rk) {
     for (int i = 0; i < 16; ++i)
-        s[i] = s[i] ^ rk[i];// ^ mask;  // ^ mi_primes[i % 4];
+        s[i] = s[i] ^ rk[i];  // ^ mask;  // ^ mi_primes[i % 4];
 }
 
 void aes_enc_rnd_sub(aes_gf28_t *s) {
@@ -214,18 +214,18 @@ void aes_enc_rnd_mix(aes_gf28_t *s) {
 
 void aes_init(const uint8_t *k, const uint8_t *r) { return; }
 
-void initial_mask(uint8_t *s) {
-    for (int i = 0; i < 16; ++i)
-        s[i] = s[i] ^ mi_primes[i % 4];
+void apply_miprimes(uint8_t *s) {
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j) s[i * 4 + j] = s[i * 4 + j] ^ mi_primes[j];
 }
 
-void re_mask(uint8_t *s) {
-    for (int i = 0; i < 16; ++i)
-        s[i] = s[i] ^ mi[i % 4];
+void apply_mi(uint8_t *s) {
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j) s[i * 4 + j] = s[i * 4 + j] ^ mi[j];
 }
 
 void apply_m(uint8_t *s) {
-for (int i = 0; i < 16; ++i) s[i] = s[i] ^ mask;
+    for (int i = 0; i < 16; ++i) s[i] = s[i] ^ mask;
 }
 
 void aes(uint8_t *c, const uint8_t *m, const uint8_t *k) {
@@ -240,15 +240,17 @@ void aes(uint8_t *c, const uint8_t *m, const uint8_t *k) {
     // 1 initial round
     aes_enc_rnd_key(s, rkp);
     apply_m(s);
-    // initial_mask(s);
+    // apply_miprimes(s);
+    
     // NR - 1 iterated rounds
     for (int i = 1; i < 10; ++i) {
         aes_enc_rnd_sub(s);
         aes_enc_rnd_row(s);
-        // re_mask(s);
+        apply_mi(s);
         aes_enc_rnd_mix(s);
         aes_enc_exp_step(rkp, AES_RC[i - 1]);
         aes_enc_rnd_key(s, rkp);
+        apply_miprimes(s);
     }
     // 1 final round
     aes_enc_rnd_sub(s);
@@ -256,6 +258,7 @@ void aes(uint8_t *c, const uint8_t *m, const uint8_t *k) {
     aes_enc_exp_step(rkp, AES_RC[9]);
     aes_enc_rnd_key(s, rkp);
     apply_m(s);
+    // apply_mi(s);
     memcpy(c, s, sizeof(aes_gf28_t) * 16);
     return;
 }

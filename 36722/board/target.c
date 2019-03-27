@@ -445,7 +445,7 @@ int main(int argc, char *argv[]) {
                 aes_init(k1, r);
 
                 scale_gpio_wr(SCALE_GPIO_PIN_TRG, true);
-                aes(c, msg, k1, r);
+                aes(c, msg, k1);
                 scale_gpio_wr(SCALE_GPIO_PIN_TRG, false);
 
                 octetstr_wr(c, SIZEOF_BLK);
